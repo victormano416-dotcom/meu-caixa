@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 
-/* see repo - loading full file */
-export default function App() { return <div className="p-8 text-white">Carregando atualização OCR...</div>; }
+/* TEMP - will update with OCR */
+export default function App() {
+  return (
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-6">
+      <p>Atualizando o app com OCR… recarregue em 1 minuto.</p>
+    </div>
+  );
+}
