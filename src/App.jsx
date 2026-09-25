@@ -1,24 +1,25 @@
 import { useState, useEffect, useCallback } from "react";
+import { parseLocal, ocrImagem } from "./ocrHelpers";
 
 /* ---------------- constantes ---------------- */
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const MESES_LONGOS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MESES_LONGOS = ["Janeiro", "Fevereiro", "MarÃ§o", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-const CATEGORIAS = ["Casa", "Alimentação", "Transporte", "Estudos", "Lazer", "Compras", "Saúde", "Outros"];
+const CATEGORIAS = ["Casa", "AlimentaÃ§Ã£o", "Transporte", "Estudos", "Lazer", "Compras", "SaÃºde", "Outros"];
 const COR_CATEGORIA = {
   Casa: "bg-sky-400",
-  "Alimentação": "bg-amber-400",
+  "AlimentaÃ§Ã£o": "bg-amber-400",
   Transporte: "bg-orange-400",
   Estudos: "bg-violet-400",
   Lazer: "bg-pink-400",
   Compras: "bg-emerald-400",
-  "Saúde": "bg-red-400",
+  "SaÃºde": "bg-red-400",
   Outros: "bg-neutral-400",
 };
-const CAT_ENTRADA = ["Salário", "Renda extra", "Freelance", "Investimentos", "Outros"];
+const CAT_ENTRADA = ["SalÃ¡rio", "Renda extra", "Freelance", "Investimentos", "Outros"];
 
-/* ---------------- helpers de mês ---------------- */
+/* ---------------- helpers de mÃªs ---------------- */
 
 const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 const brl = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -35,7 +36,7 @@ function indice({ ano, mes }) { return ano * 12 + mes; }
 function rotulo({ ano, mes }) { return `${MESES[mes]}/${String(ano).slice(2)}`; }
 function rotuloLongo({ ano, mes }) { return `${MESES_LONGOS[mes]} de ${ano}`; }
 
-/** Um item (gasto/entrada) conta neste mês? Recorrente conta sempre; avulso só no mês em que foi lançado. */
+/** Um item (gasto/entrada) conta neste mÃªs? Recorrente conta sempre; avulso sÃ³ no mÃªs em que foi lanÃ§ado. */
 function contaNesteMes(item, alvo) {
   return item.recorrente || (item.ano === alvo.ano && item.mes === alvo.mes);
 }
@@ -43,7 +44,7 @@ function valorNoMes(item, alvo) {
   return contaNesteMes(item, alvo) ? Number(item.valor) || 0 : 0;
 }
 
-/** Parcelas de uma compra: primeira no mês da compra, última em início + (parcelas - 1). */
+/** Parcelas de uma compra: primeira no mÃªs da compra, Ãºltima em inÃ­cio + (parcelas - 1). */
 function periodoCompra(compra) {
   const inicio = { ano: compra.ano, mes: compra.mes };
   const fim = somaMes(inicio, compra.parcelas - 1);
@@ -54,13 +55,13 @@ function parcelaNoMes(compra, alvo) {
   const n = indice(alvo) - indice(inicio) + 1;
   return n >= 1 && n <= compra.parcelas ? n : null;
 }
-/** Todas as parcelas dessa compra já passaram (inclui compras à vista, 1x, no mês seguinte à compra). */
+/** Todas as parcelas dessa compra jÃ¡ passaram (inclui compras Ã  vista, 1x, no mÃªs seguinte Ã  compra). */
 function compraQuitada(compra, alvo) {
   const atual = indice(alvo) - indice({ ano: compra.ano, mes: compra.mes }) + 1;
   const pagas = Math.min(compra.parcelas, Math.max(0, atual));
   return pagas >= compra.parcelas;
 }
-/** Gasto avulso (não recorrente) referente a um mês que já passou — considerado resolvido/pago. */
+/** Gasto avulso (nÃ£o recorrente) referente a um mÃªs que jÃ¡ passou â€” considerado resolvido/pago. */
 function gastoConcluido(gasto, alvo) {
   return !gasto.recorrente && indice({ ano: gasto.ano, mes: gasto.mes }) < indice(alvo);
 }
@@ -71,7 +72,7 @@ function faturaDoMes(compras, alvo, cartaoId = null) {
   }, 0);
 }
 
-/** Total por categoria no mês: gastos (fixos+variáveis) + parcelas de cartão que caem nesse mês. */
+/** Total por categoria no mÃªs: gastos (fixos+variÃ¡veis) + parcelas de cartÃ£o que caem nesse mÃªs. */
 function totaisPorCategoria(gastos, compras, alvo) {
   const mapa = {};
   CATEGORIAS.forEach((c) => (mapa[c] = 0));
@@ -129,7 +130,7 @@ function Modal({ titulo, onFechar, children }) {
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
           <h3 className="text-sm font-medium text-neutral-100">{titulo}</h3>
-          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg">×</button>
+          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg">Ã—</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -145,23 +146,23 @@ function Ponto({ cor }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${cor} shrink-0`} />;
 }
 
-/** Campo de mês/ano ou recorrência, reutilizado em Gastos e Entradas. */
-function CampoQuando({ f, set, rotuloRecorrente = "Recorrente (todo mês)" }) {
+/** Campo de mÃªs/ano ou recorrÃªncia, reutilizado em Gastos e Entradas. */
+function CampoQuando({ f, set, rotuloRecorrente = "Recorrente (todo mÃªs)" }) {
   return (
     <>
-      <Campo label="Repetição">
+      <Campo label="RepetiÃ§Ã£o">
         <label className="flex items-center gap-2 text-sm text-neutral-300">
           <input type="checkbox" checked={f.recorrente} onChange={(e) => set("recorrente", e.target.checked)} />
           {rotuloRecorrente}
         </label>
       </Campo>
       {f.recorrente ? (
-        <Campo label="Dia do mês (vencimento)">
+        <Campo label="Dia do mÃªs (vencimento)">
           <input type="number" min="1" max="31" className={input} value={f.dia} onChange={(e) => set("dia", e.target.value)} />
         </Campo>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          <Campo label="Mês">
+          <Campo label="MÃªs">
             <select className={input} value={f.mes} onChange={(e) => set("mes", Number(e.target.value))}>
               {MESES_LONGOS.map((m, i) => <option key={m} value={i}>{m}</option>)}
             </select>
@@ -175,14 +176,14 @@ function CampoQuando({ f, set, rotuloRecorrente = "Recorrente (todo mês)" }) {
   );
 }
 
-/* ---------------- tela: Início ---------------- */
+/* ---------------- tela: InÃ­cio ---------------- */
 
 function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irPara, notificar }) {
   const mesAtual = hoje();
 
   const totalEntradas = entradas.reduce((s, e) => s + valorNoMes(e, mesAtual), 0);
   const totalFixos = gastos.filter((g) => g.tipo === "Fixo").reduce((s, g) => s + valorNoMes(g, mesAtual), 0);
-  const totalVariaveis = gastos.filter((g) => g.tipo === "Variável").reduce((s, g) => s + valorNoMes(g, mesAtual), 0);
+  const totalVariaveis = gastos.filter((g) => g.tipo === "VariÃ¡vel").reduce((s, g) => s + valorNoMes(g, mesAtual), 0);
   const faturaAtual = faturaDoMes(compras, mesAtual);
   const totalGastos = totalFixos + totalVariaveis + faturaAtual;
   const sobra = totalEntradas - totalGastos;
@@ -192,10 +193,10 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
   const totalConcluidos = gastosConcluidos + comprasConcluidas;
 
   const limparConcluidos = () => {
-    if (!confirm(`Remover ${totalConcluidos} lançamento(s) já encerrado(s) (parcelas quitadas e gastos de meses passados)? Isso não pode ser desfeito.`)) return;
+    if (!confirm(`Remover ${totalConcluidos} lanÃ§amento(s) jÃ¡ encerrado(s) (parcelas quitadas e gastos de meses passados)? Isso nÃ£o pode ser desfeito.`)) return;
     setGastos(gastos.filter((g) => !gastoConcluido(g, mesAtual)));
     setCompras(compras.filter((c) => !compraQuitada(c, mesAtual)));
-    notificar(`${totalConcluidos} lançamento(s) removido(s).`);
+    notificar(`${totalConcluidos} lanÃ§amento(s) removido(s).`);
   };
 
   const proximos = Array.from({ length: 6 }, (_, i) => {
@@ -221,33 +222,33 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
           <div className="text-lg font-semibold text-neutral-100">{brl(totalFixos)}</div>
         </div>
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
-          <div className="text-xs text-neutral-500 mb-1">GASTOS VARIÁVEIS</div>
+          <div className="text-xs text-neutral-500 mb-1">GASTOS VARIÃVEIS</div>
           <div className="text-lg font-semibold text-neutral-100">{brl(totalVariaveis)}</div>
         </div>
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
-          <div className="text-xs text-neutral-500 mb-1">FATURA DO CARTÃO</div>
+          <div className="text-xs text-neutral-500 mb-1">FATURA DO CARTÃƒO</div>
           <div className="text-lg font-semibold text-amber-400">{brl(faturaAtual)}</div>
         </div>
       </div>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
-        <span className="text-sm text-neutral-300">Sobra do mês</span>
+        <span className="text-sm text-neutral-300">Sobra do mÃªs</span>
         <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-400" : "text-emerald-400"}`}>{brl(sobra)}</span>
       </div>
 
       <button onClick={() => irPara("monitoramento")}
         className="w-full text-left bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors">
-        <div className="text-sm text-neutral-300 mb-1">Ver onde está indo o dinheiro →</div>
-        <div className="text-xs text-neutral-500">Gasto por categoria neste mês</div>
+        <div className="text-sm text-neutral-300 mb-1">Ver onde estÃ¡ indo o dinheiro â†’</div>
+        <div className="text-xs text-neutral-500">Gasto por categoria neste mÃªs</div>
       </button>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-        <div className="text-sm text-neutral-300 mb-4">Fatura nos próximos meses</div>
+        <div className="text-sm text-neutral-300 mb-4">Fatura nos prÃ³ximos meses</div>
         <div className="flex items-end gap-2 h-28">
           {proximos.map((p) => (
             <div key={rotulo(p.mes)} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
               <div className="text-xs text-neutral-400 whitespace-nowrap">
-                {p.total > 0 ? brl(p.total).replace("R$", "").trim() : "—"}
+                {p.total > 0 ? brl(p.total).replace("R$", "").trim() : "â€”"}
               </div>
               <div className="w-full flex items-end" style={{ height: "60%" }}>
                 <div className="w-full bg-amber-400 rounded-t" style={{ height: `${(p.total / maior) * 100}%`, minHeight: p.total > 0 ? 3 : 0 }} />
@@ -260,7 +261,7 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
 
       {cartoes.length > 0 && (
         <div>
-          <div className="text-sm text-neutral-300 mb-2">Fatura por cartão</div>
+          <div className="text-sm text-neutral-300 mb-2">Fatura por cartÃ£o</div>
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
             {cartoes.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3">
@@ -275,10 +276,10 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
       {totalConcluidos > 0 && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm text-neutral-300">{totalConcluidos} lançamento(s) já encerrado(s)</div>
+            <div className="text-sm text-neutral-300">{totalConcluidos} lanÃ§amento(s) jÃ¡ encerrado(s)</div>
             <div className="text-xs text-neutral-500">Parcelas quitadas e gastos de meses passados</div>
           </div>
-          <button className={btnSec} onClick={limparConcluidos}>Fatura paga · limpar</button>
+          <button className={btnSec} onClick={limparConcluidos}>Fatura paga Â· limpar</button>
         </div>
       )}
     </div>
@@ -299,16 +300,16 @@ function Monitoramento({ gastos, compras }) {
     <div className="space-y-5">
       <div>
         <h2 className="text-lg font-semibold text-neutral-100">Monitoramento</h2>
-        <p className="text-sm text-neutral-500">Onde seu dinheiro está indo · {rotuloLongo(mesAtual)}</p>
+        <p className="text-sm text-neutral-500">Onde seu dinheiro estÃ¡ indo Â· {rotuloLongo(mesAtual)}</p>
       </div>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
-        <span className="text-sm text-neutral-300">Total gasto no mês</span>
+        <span className="text-sm text-neutral-300">Total gasto no mÃªs</span>
         <span className="text-xl font-semibold text-neutral-100">{brl(total)}</span>
       </div>
 
       {!linhas.length ? (
-        <Vazio texto="Nenhum gasto registrado ainda este mês." />
+        <Vazio texto="Nenhum gasto registrado ainda este mÃªs." />
       ) : (
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
           {linhas.map((l) => (
@@ -318,7 +319,7 @@ function Monitoramento({ gastos, compras }) {
                   <Ponto cor={COR_CATEGORIA[l.categoria]} />
                   {l.categoria}
                 </span>
-                <span className="text-neutral-400">{brl(l.valor)} · {((l.valor / total) * 100).toFixed(0)}%</span>
+                <span className="text-neutral-400">{brl(l.valor)} Â· {((l.valor / total) * 100).toFixed(0)}%</span>
               </div>
               <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${COR_CATEGORIA[l.categoria]}`} style={{ width: `${(l.valor / maior) * 100}%` }} />
@@ -327,12 +328,12 @@ function Monitoramento({ gastos, compras }) {
           ))}
         </div>
       )}
-      <p className="text-xs text-neutral-600">Inclui gastos fixos, variáveis e parcelas de cartão que caem neste mês. Só muda quando você lança algo — nada para ajustar aqui.</p>
+      <p className="text-xs text-neutral-600">Inclui gastos fixos, variÃ¡veis e parcelas de cartÃ£o que caem neste mÃªs. SÃ³ muda quando vocÃª lanÃ§a algo â€” nada para ajustar aqui.</p>
     </div>
   );
 }
 
-/* ---------------- tela: Cartões ---------------- */
+/* ---------------- tela: CartÃµes ---------------- */
 
 function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
   const [modalCartao, setModalCartao] = useState(null);
@@ -341,7 +342,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
   const mesAtual = hoje();
 
   const excluirCartao = (id) => {
-    if (!confirm("Excluir este cartão e todas as suas compras?")) return;
+    if (!confirm("Excluir este cartÃ£o e todas as suas compras?")) return;
     setCartoes(cartoes.filter((c) => c.id !== id));
     setCompras(compras.filter((c) => c.cartaoId !== id));
   };
@@ -350,16 +351,16 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">Cartões</h2>
+          <h2 className="text-lg font-semibold text-neutral-100">CartÃµes</h2>
           <p className="text-sm text-neutral-500">Compras parceladas e fatura mensal</p>
         </div>
         <div className="flex gap-2">
-          <button className={btnSec} onClick={() => setModalCartao({})}>+ Cartão</button>
+          <button className={btnSec} onClick={() => setModalCartao({})}>+ CartÃ£o</button>
           <button className={btn} disabled={!cartoes.length} onClick={() => setModalCompra({})}>+ Compra</button>
         </div>
       </div>
 
-      {!cartoes.length && <Vazio texto="Cadastre um cartão para começar." />}
+      {!cartoes.length && <Vazio texto="Cadastre um cartÃ£o para comeÃ§ar." />}
 
       {cartoes.map((cartao) => {
         const doCartao = compras.filter((c) => c.cartaoId === cartao.id);
@@ -380,14 +381,14 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                   <div className="text-xs text-neutral-500">{doCartao.length} compra(s)</div>
                 </div>
                 <div className="flex gap-2 text-neutral-500">
-                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-200">✎</button>
-                  <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-400">×</button>
+                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-200">âœŽ</button>
+                  <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-400">Ã—</button>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <div className="text-xs text-neutral-500">Fatura deste mês</div>
+                  <div className="text-xs text-neutral-500">Fatura deste mÃªs</div>
                   <div className="text-base font-semibold text-amber-400">{brl(faturaMes)}</div>
                 </div>
                 <div>
@@ -405,9 +406,9 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                   )}
                 </div>
                 <div>
-                  <div className="text-xs text-neutral-500">Disponível</div>
+                  <div className="text-xs text-neutral-500">DisponÃ­vel</div>
                   <div className={`text-base font-semibold ${cartao.limite > 0 && cartao.limite - aindaDevo < 0 ? "text-red-400" : "text-neutral-200"}`}>
-                    {cartao.limite > 0 ? brl(cartao.limite - aindaDevo) : "—"}
+                    {cartao.limite > 0 ? brl(cartao.limite - aindaDevo) : "â€”"}
                   </div>
                 </div>
               </div>
@@ -440,8 +441,8 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                           <div className="text-xs text-neutral-500">total {brl(c.valorTotal)}</div>
                         </div>
                         <div className="flex gap-1.5 shrink-0 text-neutral-500">
-                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-200">✎</button>
-                          <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-400">×</button>
+                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-200">âœŽ</button>
+                          <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-400">Ã—</button>
                         </div>
                       </div>
 
@@ -451,7 +452,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                       </div>
 
                       <div className="text-xs text-neutral-500">
-                        {quitada ? `Quitada em ${rotulo(fim)}` : `Parcela ${Math.max(1, atual)} de ${c.parcelas} · vai até ${rotulo(fim)}`}
+                        {quitada ? `Quitada em ${rotulo(fim)}` : `Parcela ${Math.max(1, atual)} de ${c.parcelas} Â· vai atÃ© ${rotulo(fim)}`}
                       </div>
                     </div>
                   );
@@ -495,11 +496,11 @@ function ModalCartao({ inicial, onFechar, onSalvar }) {
   const [limite, setLimite] = useState(inicial.limite ?? "");
   const valido = nome.trim();
   return (
-    <Modal titulo={inicial.id ? "Editar cartão" : "Novo cartão"} onFechar={onFechar}>
-      <Campo label="Nome do cartão">
+    <Modal titulo={inicial.id ? "Editar cartÃ£o" : "Novo cartÃ£o"} onFechar={onFechar}>
+      <Campo label="Nome do cartÃ£o">
         <input className={input} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Nubank" />
       </Campo>
-      <Campo label="Limite do cartão">
+      <Campo label="Limite do cartÃ£o">
         <input className={input} value={limite} placeholder="0,00"
           onChange={(e) => setLimite(e.target.value.replace(/[^0-9.,]/g, ""))} />
       </Campo>
@@ -533,13 +534,13 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
   const valido = f.descricao.trim() && total > 0 && f.cartaoId;
 
   return (
-    <Modal titulo={inicial.id ? "Editar compra" : "Nova compra no cartão"} onFechar={onFechar}>
-      <Campo label="Cartão">
+    <Modal titulo={inicial.id ? "Editar compra" : "Nova compra no cartÃ£o"} onFechar={onFechar}>
+      <Campo label="CartÃ£o">
         <select className={input} value={f.cartaoId} onChange={(e) => set("cartaoId", e.target.value)}>
           {cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
         </select>
       </Campo>
-      <Campo label="Descrição">
+      <Campo label="DescriÃ§Ã£o">
         <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: Notebook" />
       </Campo>
       <Campo label="Categoria">
@@ -557,7 +558,7 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
         </Campo>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Campo label="Primeira parcela (mês)">
+        <Campo label="Primeira parcela (mÃªs)">
           <select className={input} value={f.mes} onChange={(e) => set("mes", Number(e.target.value))}>
             {MESES_LONGOS.map((m, i) => <option key={m} value={i}>{m}</option>)}
           </select>
@@ -569,7 +570,7 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
       {total > 0 && (
         <div className="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-400 space-y-1">
           <div>{n}x de <span className="text-amber-400 font-medium">{brl(total / n)}</span></div>
-          <div>De {rotulo({ ano: f.ano, mes: f.mes })} até <span className="text-neutral-200">{rotulo(fim)}</span></div>
+          <div>De {rotulo({ ano: f.ano, mes: f.mes })} atÃ© <span className="text-neutral-200">{rotulo(fim)}</span></div>
         </div>
       )}
       <div className="flex justify-end gap-2 mt-4">
@@ -580,14 +581,14 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
   );
 }
 
-/* ---------------- tela: Gastos (fixos + variáveis) ---------------- */
+/* ---------------- tela: Gastos (fixos + variÃ¡veis) ---------------- */
 
 function Gastos({ gastos, setGastos }) {
   const [modal, setModal] = useState(null);
   const [filtro, setFiltro] = useState("todos");
   const mesAtual = hoje();
 
-  const lista = gastos.filter((g) => filtro === "todos" || (filtro === "fixo" ? g.tipo === "Fixo" : g.tipo === "Variável"));
+  const lista = gastos.filter((g) => filtro === "todos" || (filtro === "fixo" ? g.tipo === "Fixo" : g.tipo === "VariÃ¡vel"));
   const totalMes = gastos.reduce((s, g) => s + valorNoMes(g, mesAtual), 0);
 
   return (
@@ -595,7 +596,7 @@ function Gastos({ gastos, setGastos }) {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-neutral-100">Gastos</h2>
-          <p className="text-sm text-neutral-500">Fora do cartão · {brl(totalMes)} este mês</p>
+          <p className="text-sm text-neutral-500">Fora do cartÃ£o Â· {brl(totalMes)} este mÃªs</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Gasto</button>
       </div>
@@ -603,7 +604,7 @@ function Gastos({ gastos, setGastos }) {
       <div className="flex gap-1.5 overflow-x-auto">
         <button className={chip(filtro === "todos")} onClick={() => setFiltro("todos")}>Todos</button>
         <button className={chip(filtro === "fixo")} onClick={() => setFiltro("fixo")}>Fixos</button>
-        <button className={chip(filtro === "variavel")} onClick={() => setFiltro("variavel")}>Variáveis</button>
+        <button className={chip(filtro === "variavel")} onClick={() => setFiltro("variavel")}>VariÃ¡veis</button>
       </div>
 
       {!lista.length ? <Vazio texto="Nada aqui ainda." /> : (
@@ -614,13 +615,13 @@ function Gastos({ gastos, setGastos }) {
                 <div className="text-sm text-neutral-100 truncate">{g.descricao}</div>
                 <div className="text-xs text-neutral-500 flex items-center gap-1.5 mt-0.5">
                   <Ponto cor={COR_CATEGORIA[g.categoria]} />
-                  {g.categoria} · {g.tipo}
-                  {g.recorrente ? ` · todo dia ${g.dia}` : ` · ${rotulo({ ano: g.ano, mes: g.mes })}`}
+                  {g.categoria} Â· {g.tipo}
+                  {g.recorrente ? ` Â· todo dia ${g.dia}` : ` Â· ${rotulo({ ano: g.ano, mes: g.mes })}`}
                 </div>
               </div>
               <div className="text-sm text-neutral-100">{brl(g.valor)}</div>
-              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-200">✎</button>
-              <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-600 hover:text-red-400">×</button>
+              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-200">âœŽ</button>
+              <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-600 hover:text-red-400">Ã—</button>
             </div>
           ))}
         </div>
@@ -659,7 +660,7 @@ function ModalGasto({ inicial, onFechar, onSalvar }) {
 
   return (
     <Modal titulo={inicial.id ? "Editar gasto" : "Novo gasto"} onFechar={onFechar}>
-      <Campo label="Descrição">
+      <Campo label="DescriÃ§Ã£o">
         <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: Aluguel, Mercado..." />
       </Campo>
       <Campo label="Valor">
@@ -674,7 +675,7 @@ function ModalGasto({ inicial, onFechar, onSalvar }) {
         <Campo label="Tipo">
           <select className={input} value={f.tipo} onChange={(e) => set("tipo", e.target.value)}>
             <option value="Fixo">Fixo</option>
-            <option value="Variável">Variável</option>
+            <option value="VariÃ¡vel">VariÃ¡vel</option>
           </select>
         </Campo>
       </div>
@@ -699,7 +700,7 @@ function Entradas({ entradas, setEntradas }) {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-neutral-100">Entradas</h2>
-          <p className="text-sm text-neutral-500">{brl(totalMes)} este mês</p>
+          <p className="text-sm text-neutral-500">{brl(totalMes)} este mÃªs</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Entrada</button>
       </div>
@@ -711,12 +712,12 @@ function Entradas({ entradas, setEntradas }) {
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-neutral-100 truncate">{e.descricao}</div>
                 <div className="text-xs text-neutral-500 mt-0.5">
-                  {e.categoria}{e.recorrente ? ` · todo dia ${e.dia}` : ` · ${rotulo({ ano: e.ano, mes: e.mes })}`}
+                  {e.categoria}{e.recorrente ? ` Â· todo dia ${e.dia}` : ` Â· ${rotulo({ ano: e.ano, mes: e.mes })}`}
                 </div>
               </div>
               <div className="text-sm font-medium text-emerald-400">{brl(e.valor)}</div>
-              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-200">✎</button>
-              <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-600 hover:text-red-400">×</button>
+              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-200">âœŽ</button>
+              <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-600 hover:text-red-400">Ã—</button>
             </div>
           ))}
         </div>
@@ -754,8 +755,8 @@ function ModalEntrada({ inicial, onFechar, onSalvar }) {
 
   return (
     <Modal titulo={inicial.id ? "Editar entrada" : "Nova entrada"} onFechar={onFechar}>
-      <Campo label="Descrição">
-        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: Salário" />
+      <Campo label="DescriÃ§Ã£o">
+        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: SalÃ¡rio" />
       </Campo>
       <Campo label="Valor">
         <input className={input} value={f.valor} placeholder="0,00" onChange={(e) => set("valor", e.target.value.replace(/[^0-9.,]/g, ""))} />
@@ -774,22 +775,22 @@ function ModalEntrada({ inicial, onFechar, onSalvar }) {
   );
 }
 
-/* ---------------- lançamento rápido (IA) ---------------- */
+/* ---------------- lanÃ§amento rÃ¡pido (IA) ---------------- */
 
 async function parseQuickAdd(texto) {
-  const systemPrompt = `Você extrai lançamentos financeiros de um texto em português informal. O texto pode conter UM OU VÁRIOS lançamentos, geralmente um por linha. Responda APENAS com um JSON válido, sem markdown: um ARRAY de objetos, um por lançamento identificado, no formato exato:
-[{"tipo": "entrada" | "gasto" | "compraCartao", "descricao": "<3-5 palavras>", "valor": <numero>, "categoria": "<categoria>", "tipoGasto": "Fixo" | "Variável", "recorrente": <true ou false>, "dia": <numero ou null>, "parcelas": <numero ou 1>, "banco": "<nome do cartão/banco ou null>"}]
+  const systemPrompt = `VocÃª extrai lanÃ§amentos financeiros de um texto em portuguÃªs informal. O texto pode conter UM OU VÃRIOS lanÃ§amentos, geralmente um por linha. Responda APENAS com um JSON vÃ¡lido, sem markdown: um ARRAY de objetos, um por lanÃ§amento identificado, no formato exato:
+[{"tipo": "entrada" | "gasto" | "compraCartao", "descricao": "<3-5 palavras>", "valor": <numero>, "categoria": "<categoria>", "tipoGasto": "Fixo" | "VariÃ¡vel", "recorrente": <true ou false>, "dia": <numero ou null>, "parcelas": <numero ou 1>, "banco": "<nome do cartÃ£o/banco ou null>"}]
 
-Categorias de gasto válidas: ${CATEGORIAS.join(", ")}.
-Categorias de entrada válidas: ${CAT_ENTRADA.join(", ")}.
+Categorias de gasto vÃ¡lidas: ${CATEGORIAS.join(", ")}.
+Categorias de entrada vÃ¡lidas: ${CAT_ENTRADA.join(", ")}.
 
 Regras:
-- Cada linha ou frase separada é um lançamento distinto. Mantenha a ordem em que aparecem.
-- "gastei", "paguei X no mercado/uber/farmácia" sem menção a cartão ou parcelas = "gasto", tipoGasto "Variável", recorrente false.
-- Conta fixa mencionada ("aluguel", "internet", "água", "luz", "todo mês", "todo dia X") = "gasto", tipoGasto "Fixo", recorrente true, dia = o dia mencionado (padrão 10 se não citado).
-- "recebi", "caiu", "salário" = "entrada". Se mencionar "todo mês" ou for salário, recorrente true.
-- Menção a cartão, banco ou parcelas ("em Nx", "parcelado") = "compraCartao"; parcelas = número de parcelas (padrão 1); banco = nome citado ou null.
-- Ignore qualquer linha sem valor numérico identificável (não a inclua no array).
+- Cada linha ou frase separada Ã© um lanÃ§amento distinto. Mantenha a ordem em que aparecem.
+- "gastei", "paguei X no mercado/uber/farmÃ¡cia" sem menÃ§Ã£o a cartÃ£o ou parcelas = "gasto", tipoGasto "VariÃ¡vel", recorrente false.
+- Conta fixa mencionada ("aluguel", "internet", "Ã¡gua", "luz", "todo mÃªs", "todo dia X") = "gasto", tipoGasto "Fixo", recorrente true, dia = o dia mencionado (padrÃ£o 10 se nÃ£o citado).
+- "recebi", "caiu", "salÃ¡rio" = "entrada". Se mencionar "todo mÃªs" ou for salÃ¡rio, recorrente true.
+- MenÃ§Ã£o a cartÃ£o, banco ou parcelas ("em Nx", "parcelado") = "compraCartao"; parcelas = nÃºmero de parcelas (padrÃ£o 1); banco = nome citado ou null.
+- Ignore qualquer linha sem valor numÃ©rico identificÃ¡vel (nÃ£o a inclua no array).
 - Se nada for identificado, responda [].`;
 
   const resposta = await fetch("https://api.anthropic.com/v1/messages", {
@@ -802,20 +803,75 @@ Regras:
       messages: [{ role: "user", content: texto }],
     }),
   });
-  if (!resposta.ok) throw new Error("Falha ao consultar a IA.");
-  const dados = await resposta.json();
-  const bloco = (dados.content || []).find((b) => b.type === "text");
-  if (!bloco) throw new Error("Resposta vazia da IA.");
-  const limpo = bloco.text.replace(/```json|```/g, "").trim();
-  const parsed = JSON.parse(limpo);
-  return Array.isArray(parsed) ? parsed : [parsed];
+  if (!resposta.ok) {
+    const local = parseLocal(texto);
+    if (local.length) return local;
+    throw new Error("Falha ao consultar a IA. Descreva em texto simples.");
+  }
+  try {
+    const dados = await resposta.json();
+    const bloco = (dados.content || []).find((b) => b.type === "text");
+    if (!bloco) {
+      const local = parseLocal(texto);
+      if (local.length) return local;
+      throw new Error("Resposta vazia da IA.");
+    }
+    const limpo = bloco.text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(limpo);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch (e) {
+    const local = parseLocal(texto);
+    if (local.length) return local;
+    throw e;
+  }
 }
 
 function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, notificar }) {
   const [texto, setTexto] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [ocrProgresso, setOcrProgresso] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [erro, setErro] = useState("");
   const agora = hoje();
+
+  const processarImagem = async (fileOrBlob) => {
+    if (!fileOrBlob) return;
+    setErro("");
+    setOcrProgresso(0);
+    try {
+      setPreview(URL.createObjectURL(fileOrBlob));
+      const extraido = await ocrImagem(fileOrBlob, setOcrProgresso);
+      if (!extraido) {
+        setErro("NÃ£o consegui ler texto na imagem. Tente um print mais nÃ­tido.");
+        setOcrProgresso(null);
+        return;
+      }
+      setTexto((t) => (t ? t + "\n" + extraido : extraido));
+      setOcrProgresso(null);
+    } catch (e) {
+      console.error(e);
+      setErro("Falha no OCR. Tente de novo ou digite o texto.");
+      setOcrProgresso(null);
+    }
+  };
+
+  const onPaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        processarImagem(item.getAsFile());
+        return;
+      }
+    }
+  };
+
+  const onFile = (e) => {
+    const file = e.target.files?.[0];
+    if (file) processarImagem(file);
+    e.target.value = "";
+  };
 
   const enviar = async () => {
     if (!texto.trim() || carregando) return;
@@ -824,7 +880,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
     try {
       const lista = await parseQuickAdd(texto.trim());
       if (!lista.length) {
-        setErro("Não identifiquei nenhum lançamento. Tente algo como 'gastei 45 no mercado'.");
+        setErro("NÃ£o identifiquei nenhum lanÃ§amento. Tente algo como 'gastei 45 no mercado'.");
         setCarregando(false);
         return;
       }
@@ -850,7 +906,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
             valorTotal: Number(p.valor), parcelas, ano: agora.ano, mes: agora.mes });
         } else {
           novosGastos.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaGasto,
-            tipo: p.tipoGasto === "Fixo" ? "Fixo" : "Variável", recorrente: !!p.recorrente, dia: p.dia || 10,
+            tipo: p.tipoGasto === "Fixo" ? "Fixo" : "VariÃ¡vel", recorrente: !!p.recorrente, dia: p.dia || 10,
             ano: agora.ano, mes: agora.mes });
         }
       });
@@ -861,41 +917,71 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
 
       const total = novasEntradas.length + novosGastos.length + novasCompras.length;
       if (total === 0 && semCartao > 0) {
-        setErro("Cadastre um cartão antes de lançar compras no cartão.");
+        setErro("Cadastre um cartÃ£o antes de lanÃ§ar compras no cartÃ£o.");
         setCarregando(false);
         return;
       }
       const partes = [];
       if (novasEntradas.length) partes.push(`${novasEntradas.length} entrada(s)`);
       if (novosGastos.length) partes.push(`${novosGastos.length} gasto(s)`);
-      if (novasCompras.length) partes.push(`${novasCompras.length} compra(s) no cartão`);
-      notificar(`Adicionado: ${partes.join(", ")}${semCartao ? ` · ${semCartao} ignorado(s) por falta de cartão` : ""}`);
+      if (novasCompras.length) partes.push(`${novasCompras.length} compra(s) no cartÃ£o`);
+      notificar(`Adicionado: ${partes.join(", ")}${semCartao ? ` Â· ${semCartao} ignorado(s) por falta de cartÃ£o` : ""}`);
       onFechar();
     } catch (e) {
-      setErro(e.message || "Não entendi. Tente reformular.");
+      setErro(e.message || "NÃ£o entendi. Tente reformular.");
     } finally {
       setCarregando(false);
     }
   };
 
   return (
-    <Modal titulo="Lançamento rápido" onFechar={onFechar}>
+    <Modal titulo="LanÃ§amento rÃ¡pido" onFechar={onFechar}>
       <p className="text-xs text-neutral-500 mb-3">
-        Pode colar vários de uma vez, um por linha. Ex:{"\n"}
-        "gastei 45 no mercado" · "recebi 200 de freela" · "comprei um fone de 300 em 3x no nubank" · "aluguel 800 todo dia 10"
+        Digite, cole texto, ou envie um print. O OCR lÃª o texto automaticamente.
       </p>
+      <div className="mb-3 border border-dashed border-neutral-700 rounded-lg p-3 text-center">
+        {preview ? (
+          <div className="relative">
+            <img src={preview} alt="preview" className="max-h-28 mx-auto rounded object-contain" />
+            <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-neutral-900/80 rounded px-1.5" onClick={() => setPreview(null)}>Ã—</button>
+          </div>
+        ) : (
+          <div className="space-y-2 py-1">
+            <p className="text-xs text-neutral-500">Cole um print ou escolha uma foto:</p>
+            <div className="flex gap-2 justify-center flex-wrap">
+              <label className="inline-flex items-center justify-center gap-1.5 bg-amber-400 text-neutral-950 font-medium text-sm px-4 py-2.5 rounded-lg cursor-pointer active:bg-amber-300">
+                Galeria
+                <input type="file" accept="image/*" className="sr-only" onChange={onFile} />
+              </label>
+              <label className="inline-flex items-center justify-center gap-1.5 border border-neutral-700 text-neutral-200 text-sm px-4 py-2.5 rounded-lg cursor-pointer active:bg-neutral-800">
+                CÃ¢mera
+                <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={onFile} />
+              </label>
+            </div>
+          </div>
+        )}
+        {ocrProgresso != null && (
+          <div className="mt-2">
+            <div className="text-xs text-amber-400 mb-1">Lendo imagemâ€¦ {ocrProgresso}%</div>
+            <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div className="h-full bg-amber-400 transition-all" style={{ width: `${ocrProgresso}%` }} />
+            </div>
+          </div>
+        )}
+      </div>
       <textarea
         autoFocus
         className={input + " min-h-32 resize-none"}
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        placeholder={"Um lançamento por linha...\nEx:\ngastei 45 no mercado\nrecebi 3000 de salário todo mês\naluguel 800 todo dia 10"}
+        onPaste={onPaste}
+        placeholder={"Um lanÃ§amento por linha...\nEx:\ngastei 45 no mercado"}
       />
       {erro && <div className="text-xs text-red-400 mt-2">{erro}</div>}
-      <p className="text-xs text-neutral-600 mt-2">O texto é enviado à IA da Anthropic só para identificar valor e categoria.</p>
+      <p className="text-xs text-neutral-600 mt-2">O texto Ã© enviado Ã  IA da Anthropic sÃ³ para identificar valor e categoria.</p>
       <div className="flex justify-end gap-2 mt-4">
         <button className={btnSec} onClick={onFechar}>Cancelar</button>
-        <button className={btn} disabled={carregando} onClick={enviar}>{carregando ? "Analisando..." : "Adicionar"}</button>
+        <button className={btn} disabled={carregando || ocrProgresso != null} onClick={enviar}>{carregando ? "Analisando..." : "Adicionar"}</button>
       </div>
     </Modal>
   );
@@ -904,10 +990,10 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
 /* ---------------- app ---------------- */
 
 const ABAS = [
-  { chave: "inicio", nome: "Início" },
+  { chave: "inicio", nome: "InÃ­cio" },
   { chave: "entradas", nome: "Entradas" },
   { chave: "gastos", nome: "Gastos" },
-  { chave: "cartoes", nome: "Cartões" },
+  { chave: "cartoes", nome: "CartÃµes" },
   { chave: "monitoramento", nome: "Monitoramento" },
 ];
 
@@ -956,7 +1042,7 @@ export default function App() {
         {aba === "monitoramento" && <Monitoramento gastos={gastos} compras={compras} />}
       </div>
 
-      <button onClick={() => setRapido(true)} title="Lançamento rápido"
+      <button onClick={() => setRapido(true)} title="LanÃ§amento rÃ¡pido"
         className="fixed bottom-6 right-5 md:right-8 w-14 h-14 rounded-full bg-amber-400 text-neutral-950 text-2xl font-light shadow-lg hover:bg-amber-300 transition-colors flex items-center justify-center z-40">
         +
       </button>
