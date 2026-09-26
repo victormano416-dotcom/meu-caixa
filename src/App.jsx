@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
+import { consumirCompartilhamento } from "./shareQueue";
 
 /* ---------------- constantes ---------------- */
 
@@ -779,7 +780,7 @@ function ModalEntrada({ inicial, onFechar, onSalvar }) {
 
 // parseQuickAdd importado de ./ocrHelpers (sem fetch)
 
-function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, notificar }) {
+function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, notificar, arquivoInicial }) {
   const [texto, setTexto] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [ocrProgresso, setOcrProgresso] = useState(null);
@@ -819,6 +820,13 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       }
     }
   };
+
+  useEffect(() => {
+    if (arquivoInicial) {
+      processarImagem(arquivoInicial);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onFile = (e) => {
     const file = e.target.files?.[0];
@@ -958,11 +966,29 @@ export default function App() {
   const [compras, setCompras, p4] = useSalvo("mc_compras", []);
   const [rapido, setRapido] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [arquivoShare, setArquivoShare] = useState(null);
 
   const notificar = (msg) => {
     setAviso(msg);
     setTimeout(() => setAviso(""), 2600);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const file = await consumirCompartilhamento();
+      if (!cancelled && file) {
+        setArquivoShare(file);
+        setRapido(true);
+        if (window.history.replaceState) {
+          const u = new URL(window.location.href);
+          u.searchParams.delete("share");
+          window.history.replaceState({}, "", u.pathname + u.search);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   if (!(p1 && p2 && p3 && p4)) return null;
 
@@ -1005,8 +1031,9 @@ export default function App() {
           entradas={entradas} setEntradas={setEntradas}
           gastos={gastos} setGastos={setGastos}
           cartoes={cartoes} compras={compras} setCompras={setCompras}
-          onFechar={() => setRapido(false)}
+          onFechar={() => { setRapido(false); setArquivoShare(null); }}
           notificar={notificar}
+          arquivoInicial={arquivoShare}
         />
       )}
 
