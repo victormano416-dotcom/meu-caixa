@@ -39,7 +39,9 @@ export async function consumirCompartilhamento() {
 
 export function registrarServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("SW", e));
-  });
+  const reg = () => {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((e) => console.warn("SW", e));
+  };
+  if (document.readyState === "complete") reg();
+  else window.addEventListener("load", reg);
 }

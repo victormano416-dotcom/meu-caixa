@@ -34,19 +34,14 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method === "POST" && url.pathname.endsWith("/share-target")) {
+  if (event.request.method === "POST" && url.pathname === "/share-target") {
     event.respondWith(
       (async () => {
         try {
           const form = await event.request.formData();
           const files = [];
-          for (const [key, val] of form.entries()) {
+          for (const val of form.values()) {
             if (val instanceof File && val.size > 0) files.push(val);
-          }
-          // também tenta o campo images
-          const imgs = form.getAll("images");
-          for (const v of imgs) {
-            if (v instanceof File && v.size > 0 && !files.includes(v)) files.push(v);
           }
           if (files.length) await savePending(files);
         } catch (err) {
