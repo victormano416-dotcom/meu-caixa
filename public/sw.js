@@ -1,6 +1,7 @@
-/* Service worker — intercepta compartilhar (Share Target) */
-const DB_NAME = "meu-caixa-share";
+/* Service worker — Share Target (Nubank -> Meu Caixa) */
+const DB_NAME = "meu-caixa-share-v2";
 const STORE = "pending";
+const CACHE = "meu-caixa-share-v2";
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -14,41 +15,78 @@ function openDb() {
   });
 }
 
-async function savePending(files) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put({ files, at: Date.now() }, "latest");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+async function savePending(entries) {
+  // IndexedDB
+  try {
+    const db = await openDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).put({ entries, at: Date.now() }, "latest");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.error("idb save", e);
+  }
+  // Cache API backup (primeiro arquivo)
+  try {
+    if (entries[0]) {
+      const e0 = entries[0];
+      const cache = await caches.open(CACHE);
+      await cache.put(
+        "/__shared_image__",
+        new Response(e0.buffer, {
+          headers: {
+            "content-type": e0.type || "image/jpeg",
+            "x-file-name": e0.name || "comprovante.jpg",
+          },
+        })
+      );
+    }
+  } catch (e) {
+    console.error("cache save", e);
+  }
 }
 
-self.addEventListener("install", (e) => {
+self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method === "POST" && url.pathname === "/share-target") {
-    event.respondWith(
-      (async () => {
-        try {
-          const form = await event.request.formData();
-          const files = [];
-          for (const val of form.values()) {
-            if (val instanceof File && val.size > 0) files.push(val);
+  if (event.request.method !== "POST") return;
+  if (url.pathname !== "/share-target" && !url.pathname.endsWith("/share-target")) return;
+
+  event.respondWith(
+    (async () => {
+      try {
+        const form = await event.request.formData();
+        const entries = [];
+        for (const val of form.values()) {
+          if (val instanceof Blob && val.size > 0) {
+            const buffer = await val.arrayBuffer();
+            entries.push({
+              name: (val instanceof File && val.name) || "comprovante.jpg",
+              type: val.type || "image/jpeg",
+              buffer,
+            });
           }
-          if (files.length) await savePending(files);
-        } catch (err) {
-          console.error("share-target", err);
         }
-        return Response.redirect("/?share=1", 303);
-      })()
-    );
-  }
+        if (entries.length) {
+          await savePending(entries);
+          const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+          for (const c of all) {
+            c.postMessage({ type: "SHARE_RECEIVED", count: entries.length });
+          }
+        }
+      } catch (err) {
+        console.error("share-target", err);
+      }
+      return Response.redirect(new URL("/?share=1", self.location.origin).href, 303);
+    })()
+  );
 });
