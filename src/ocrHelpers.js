@@ -24,25 +24,21 @@ function extrairValoresMonetarios(texto) {
   return encontrados;
 }
 
-/** dd/mm/aaaa ou dd/mm/aa */
 function extrairData(texto) {
   const m = texto.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   if (!m) return null;
   let dia = parseInt(m[1], 10);
-  let mes = parseInt(m[2], 10) - 1; // 0-11
+  let mes = parseInt(m[2], 10) - 1;
   let ano = parseInt(m[3], 10);
   if (ano < 100) ano += 2000;
   if (mes < 0 || mes > 11 || dia < 1 || dia > 31) return null;
   return { dia, mes, ano };
 }
 
-/** "2 de 10", "2/10", "10x", "em 10x" */
 function extrairParcelas(texto) {
   const low = texto.toLowerCase();
   let m = low.match(/(\d{1,2})\s*de\s*(\d{1,2})/);
-  if (m) {
-    return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) };
-  }
+  if (m) return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) };
   m = low.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*(?:parc|x)?/);
   if (m && parseInt(m[2], 10) > 1 && parseInt(m[2], 10) <= 48) {
     return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) };
@@ -66,7 +62,6 @@ function extrairDescricao(texto, low) {
   const patterns = [
     /estabelecimento[:\s]*([A-Za-z0-9* .\-]{2,40})/i,
     /destino[:\s]*([A-Za-z0-9* .\-]{2,40})/i,
-    /(?:compra|pago|em)\s+([A-Za-z0-9* .\-]{3,40})/i,
   ];
   for (const re of patterns) {
     const m = texto.match(re);
@@ -76,7 +71,6 @@ function extrairDescricao(texto, low) {
     }
   }
 
-  // primeira linha "forte" (ex.: Mp*mercadolivre no topo do BB)
   for (const linha of texto.split(/\n+/)) {
     const t = linha.trim();
     if (t.length < 3 || t.length > 50) continue;
@@ -94,19 +88,19 @@ function categorizar(low, desc) {
   if (/ifood|rappi|lanche|bistek|aliment|fruteira|padaria|restaurante|supermercado|sacol/i.test(t) && !/mercado\s*livre|mercadolivre/i.test(t)) return "Alimentação";
   if (/farm|remedio|remédio|saude|saúde|drogaria/i.test(t)) return "Saúde";
   if (/cinema|netflix|spotify|lazer|academia|muay|jogo|steam/i.test(t)) return "Lazer";
-  if (/shein|shopee|amazon|magazine|magalu|mercado\s*livre|mercadolivre|mp\s*\*?\s*mercado|compra|renner|americanas|ml\b/i.test(t)) return "Compras";
+  if (/shein|shopee|amazon|magazine|magalu|mercado\s*livre|mercadolivre|mp\s*\*?\s*mercado|compra|renner|americanas/i.test(t)) return "Compras";
   if (/casa|sakae|construcao|construção|material|aluguel|luz|agua|água|internet/i.test(t)) return "Casa";
   return "Outros";
 }
 
 function detectarBanco(low) {
-  if (/nubank|\bnu\b|nu\s*pagamentos/i.test(low)) return "NU";
-  if (/banco do brasil|\bbb\b|fac[ií]l visa|bb\s*visa/i.test(low)) return "BB";
+  // BB / Facil primeiro (antes de qualquer "nu")
+  if (/banco do brasil|fac[ií]l|\bbb\b/i.test(low)) return "BB";
+  if (/nubank|nu\s*pagamentos/i.test(low)) return "NU";
   if (/\binter\b/i.test(low)) return "Inter";
   if (/\bc6\b/i.test(low)) return "C6";
   if (/ita[uú]/i.test(low)) return "Itau";
   if (/bradesco/i.test(low)) return "Bradesco";
-  if (/cart[aã]o|visa|master|crédito|credito|débito|debito/i.test(low)) return "Cartao";
   return null;
 }
 
@@ -135,11 +129,9 @@ export function parseLocal(texto) {
     }
 
     const parcelas = parc && parc.total > 1 ? parc.total : 1;
-    // valor do comprovante costuma ser a parcela; total = parcela * n
     const valorParcela = escolhido.valor;
     const valorTotal = parcelas > 1 ? valorParcela * parcelas : valorParcela;
 
-    // mÃªs da 1Âª parcela = data da compra (nÃ£o o mÃªs de hoje)
     let ano = null;
     let mes = null;
     if (data) {
@@ -159,13 +151,12 @@ export function parseLocal(texto) {
       recorrente: false,
       dia: data ? data.dia : null,
       parcelas,
-      banco: banco === "Cartao" ? null : banco,
+      banco,
       ano,
       mes,
     }];
   }
 
-  // texto livre
   let linhas = limpo.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 1);
   if (linhas.length <= 1 && limpo.length > 20) linhas = [limpo];
 
@@ -208,7 +199,7 @@ export function parseLocal(texto) {
 
     const pLinha = extrairParcelas(linha);
     if (pLinha && pLinha.total > 1) parcelas = pLinha.total;
-    if (/\d+\s*x|parcel|cartao|cartão|nubank|\bnu\b|visa|master/i.test(lowL) || parcelas > 1) {
+    if (/\d+\s*x|parcel|cartao|cartão|nubank|visa|master/i.test(lowL) || parcelas > 1) {
       tipo = "compraCartao";
       bancoL = detectarBanco(lowL);
     }
@@ -220,7 +211,7 @@ export function parseLocal(texto) {
       valorTotal: parcelas > 1 ? valor * parcelas : valor,
       categoria: categorizar(lowL, descricaoL),
       tipoGasto, recorrente, dia, parcelas,
-      banco: bancoL === "Cartao" ? null : bancoL,
+      banco: bancoL,
       ano, mes,
     });
   }
@@ -237,7 +228,7 @@ export function parseLocal(texto) {
       recorrente: false,
       dia: data ? data.dia : null,
       parcelas: 1,
-      banco: banco === "Cartao" ? null : banco,
+      banco,
       ano: data ? data.ano : null,
       mes: data ? data.mes : null,
     });
