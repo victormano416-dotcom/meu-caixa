@@ -1,4 +1,4 @@
-/** Parser local + OCR — Nubank, BB e outros comprovantes */
+/** Parser local + OCR — comprovantes estruturados (BB, Nubank, etc.) */
 
 function limparOcr(texto) {
   return String(texto || "")
@@ -9,23 +9,44 @@ function limparOcr(texto) {
     .trim();
 }
 
-function extrairValoresMonetarios(texto) {
-  const encontrados = [];
-  const re = /r\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})|r\$\s*(\d+[.,]\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})|(\d+,\d{2})/gi;
-  let m;
-  while ((m = re.exec(texto)) !== null) {
-    let raw = m[1] || m[2] || m[3] || m[4];
-    if (!raw) continue;
-    if (raw.includes(",") && raw.includes(".")) raw = raw.replace(/\./g, "").replace(",", ".");
-    else if (raw.includes(",")) raw = raw.replace(",", ".");
-    const v = parseFloat(raw);
-    if (v > 0 && v < 100000) encontrados.push({ valor: v, index: m.index, raw: m[0] });
+function paraNumero(raw) {
+  if (raw == null) return null;
+  let s = String(raw).trim();
+  s = s.replace(/r\$\s*/i, "").trim();
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
+  const v = parseFloat(s);
+  return v > 0 && v < 1000000 ? v : null;
+}
+
+function campo(texto, nomes) {
+  const lines = texto.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const low = line.toLowerCase();
+    for (const nome of nomes) {
+      const re = new RegExp("^" + nome.replace(/\s+/g, "\\s*") + "\\s*[:\\-]?\\s*(.*)$", "i");
+      const m = line.match(re);
+      if (m) {
+        const rest = (m[1] || "").trim();
+        if (rest) return rest;
+        if (i + 1 < lines.length) return lines[i + 1];
+      }
+      if (low === nome.toLowerCase() || low === nome.toLowerCase() + ":") {
+        if (i + 1 < lines.length) return lines[i + 1];
+      }
+    }
   }
-  return encontrados;
+  for (const nome of nomes) {
+    const re = new RegExp(nome + "\\s*[:\\-]?\\s*([^\\n]+)", "i");
+    const m = texto.match(re);
+    if (m && m[1].trim()) return m[1].trim();
+  }
+  return null;
 }
 
 function extrairData(texto) {
-  const m = texto.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  const m = String(texto || "").match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   if (!m) return null;
   let dia = parseInt(m[1], 10);
   let mes = parseInt(m[2], 10) - 1;
@@ -36,205 +57,198 @@ function extrairData(texto) {
 }
 
 function extrairParcelas(texto) {
-  const low = texto.toLowerCase();
-  let m = low.match(/(\d{1,2})\s*de\s*(\d{1,2})/);
-  if (m) return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) };
-  m = low.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*(?:parc|x)?/);
-  if (m && parseInt(m[2], 10) > 1 && parseInt(m[2], 10) <= 48) {
-    return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10) };
-  }
+  const low = String(texto || "").toLowerCase();
+  let m = low.match(/(\d{1,2})\s*x\s*de\s*r\$?\s*([\d.,]+)/i);
+  if (m) return { total: parseInt(m[1], 10), valorParcela: paraNumero(m[2]) };
+  m = low.match(/(\d{1,2})\s*x\s*de\s*([\d.,]+)/i);
+  if (m) return { total: parseInt(m[1], 10), valorParcela: paraNumero(m[2]) };
+  m = low.match(/(\d{1,2})\s*de\s*(\d{1,2})/);
+  if (m) return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10), valorParcela: null };
+  m = low.match(/parc\.?\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
+  if (m) return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10), valorParcela: null };
   m = low.match(/(\d{1,2})\s*x\b/);
-  if (m) return { atual: 1, total: parseInt(m[1], 10) };
-  m = low.match(/em\s*(\d{1,2})\s*x/);
-  if (m) return { atual: 1, total: parseInt(m[1], 10) };
+  if (m) return { total: parseInt(m[1], 10), valorParcela: null };
   return null;
 }
 
-function extrairDescricao(texto, low) {
-  if (/mercado\s*livre|mercadolivre|mp\s*\*?\s*mercado/i.test(texto)) return "Mercado Livre";
+function extrairDescricao(texto, estabelecimento) {
+  if (estabelecimento) {
+    let d = estabelecimento
+      .replace(/parc\.?\s*\d+\s*\/\s*\d+/i, "")
+      .replace(/\*/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (/mercado\s*liv|mercadoliv/i.test(d)) return "Mercado Livre";
+    if (/shein/i.test(d)) return "Shein";
+    if (/shopee/i.test(d)) return "Shopee";
+    if (d.length >= 2) return d.slice(0, 40);
+  }
+  if (/mercado\s*livre|mercadoliv|mp\s*\*?\s*mercado/i.test(texto)) return "Mercado Livre";
   if (/shein/i.test(texto)) return "Shein";
   if (/shopee/i.test(texto)) return "Shopee";
   if (/ifood/i.test(texto)) return "iFood";
   if (/\buber\b/i.test(texto)) return "Uber";
-  if (/amazon/i.test(texto)) return "Amazon";
-  if (/magazine|magalu/i.test(texto)) return "Magalu";
-
-  const patterns = [
-    /estabelecimento[:\s]*([A-Za-z0-9* .\-]{2,40})/i,
-    /destino[:\s]*([A-Za-z0-9* .\-]{2,40})/i,
-  ];
-  for (const re of patterns) {
-    const m = texto.match(re);
-    if (m && m[1]) {
-      const d = m[1].replace(/\*+/g, " ").replace(/\s+/g, " ").trim();
-      if (d.length >= 2) return d.slice(0, 40);
-    }
-  }
-
-  for (const linha of texto.split(/\n+/)) {
-    const t = linha.trim();
-    if (t.length < 3 || t.length > 50) continue;
-    if (/detalhes|comprovante|pagamento|transfer|valor|cart[aã]o|nsu|autoriz|parcela|contest|antecip|virtual|final\s*\d/i.test(t)) continue;
-    if (/^r\$/i.test(t) || /^\d+$/.test(t)) continue;
-    if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(t) && t.length < 20) continue;
-    return t.replace(/\*/g, "").replace(/\s+/g, " ").slice(0, 40);
-  }
   return "Compra";
 }
 
-function categorizar(low, desc) {
+function categorizar(desc, low) {
   const t = (low + " " + desc).toLowerCase();
-  if (/uber|99\b|transporte|gasolina|estacionamento|passagem/i.test(t)) return "Transporte";
-  if (/ifood|rappi|lanche|bistek|aliment|fruteira|padaria|restaurante|supermercado|sacol/i.test(t) && !/mercado\s*livre|mercadolivre/i.test(t)) return "Alimentação";
+  if (/uber|99\b|transporte|gasolina/i.test(t)) return "Transporte";
+  if (/ifood|rappi|lanche|restaurante|supermercado|aliment/i.test(t) && !/mercado\s*liv/i.test(t)) return "Alimentação";
   if (/farm|remedio|remédio|saude|saúde|drogaria/i.test(t)) return "Saúde";
-  if (/cinema|netflix|spotify|lazer|academia|muay|jogo|steam/i.test(t)) return "Lazer";
-  if (/shein|shopee|amazon|magazine|magalu|mercado\s*livre|mercadolivre|mp\s*\*?\s*mercado|compra|renner|americanas/i.test(t)) return "Compras";
-  if (/casa|sakae|construcao|construção|material|aluguel|luz|agua|água|internet/i.test(t)) return "Casa";
+  if (/cinema|netflix|spotify|lazer|academia/i.test(t)) return "Lazer";
+  if (/shein|shopee|amazon|magazine|magalu|mercado\s*liv|mercadoliv|compra|renner/i.test(t)) return "Compras";
+  if (/casa|aluguel|luz|agua|água|internet/i.test(t)) return "Casa";
   return "Outros";
 }
 
-function detectarBanco(low) {
-  // BB / Facil primeiro (antes de qualquer "nu")
-  if (/banco do brasil|fac[ií]l|\bbb\b/i.test(low)) return "BB";
-  if (/nubank|nu\s*pagamentos/i.test(low)) return "NU";
-  if (/\binter\b/i.test(low)) return "Inter";
-  if (/\bc6\b/i.test(low)) return "C6";
-  if (/ita[uú]/i.test(low)) return "Itau";
-  if (/bradesco/i.test(low)) return "Bradesco";
+function detectarBanco(low, cartaoTxt) {
+  const c = (cartaoTxt || "") + " " + low;
+  if (/banco do brasil|fac[ií]l|\bbb\b/i.test(c)) return "BB";
+  if (/nubank|nu\s*pagamentos/i.test(c)) return "NU";
+  if (/\binter\b/i.test(c)) return "Inter";
+  if (/\bc6\b/i.test(c)) return "C6";
+  if (/ita[uú]/i.test(c)) return "Itau";
+  if (/bradesco/i.test(c)) return "Bradesco";
   return null;
+}
+
+function detectarForma(low, funcaoTxt) {
+  const t = ((funcaoTxt || "") + " " + low).toLowerCase();
+  if (/\bpix\b/.test(t)) return "pix";
+  if (/d[eé]bito/.test(t)) return "debito";
+  if (/cr[eé]dito|parcela|\d+\s*x/.test(t)) return "credito";
+  if (/dinheiro|esp[eé]cie/.test(t)) return "dinheiro";
+  return null;
+}
+
+function extrairValoresMonetarios(texto) {
+  const encontrados = [];
+  const re = /r\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})|r\$\s*(\d+[.,]\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})|(\d+,\d{2})/gi;
+  let m;
+  while ((m = re.exec(texto)) !== null) {
+    const v = paraNumero(m[1] || m[2] || m[3] || m[4]);
+    if (v) encontrados.push({ valor: v, index: m.index });
+  }
+  return encontrados;
+}
+
+function parseTextoLivre(limpo, low) {
+  const valores = extrairValoresMonetarios(limpo);
+  if (!valores.length) return [];
+  const v = [...valores].sort((a, b) => b.valor - a.valor)[0];
+  const parcInfo = extrairParcelas(limpo);
+  const parcelas = parcInfo && parcInfo.total > 1 ? parcInfo.total : 1;
+  const data = extrairData(limpo);
+  const descricao = extrairDescricao(limpo, null);
+  const banco = detectarBanco(low, null);
+  const isCartao = !!(banco || (parcInfo && parcelas > 1) || /cart[aã]o|cr[eé]dito|\d+\s*x/i.test(low));
+  return [{
+    tipo: isCartao ? "compraCartao" : "gasto",
+    forma: isCartao ? "credito" : (/pix/i.test(low) ? "pix" : "debito"),
+    descricao,
+    valor: parcelas > 1 && parcInfo && parcInfo.valorParcela ? parcInfo.valorParcela : v.valor,
+    valorTotal: parcelas > 1
+      ? (parcInfo && parcInfo.valorParcela ? parcInfo.valorParcela * parcelas : v.valor)
+      : v.valor,
+    categoria: categorizar(descricao, low),
+    tipoGasto: "Variavel",
+    recorrente: false,
+    dia: data ? data.dia : null,
+    parcelas: isCartao ? parcelas : 1,
+    banco,
+    cartaoFinal: null,
+    ano: data ? data.ano : null,
+    mes: data ? data.mes : null,
+  }];
 }
 
 export function parseLocal(texto) {
   const limpo = limparOcr(texto);
   const low = limpo.toLowerCase();
 
-  const isComprovante = /comprovante|estabelecimento|nsu|c[oó]digo de autoriz|tipo de transfer|detalhes da compra|parcela|cart[aã]o virtual|final\s*\d{4}/i.test(limpo);
+  const estabelecimento = campo(limpo, ["Estabelecimento", "estabelecimento", "Destino", "Loja"]);
+  const valorTxt = campo(limpo, ["Valor", "valor"]);
+  const parcelasTxt = campo(limpo, ["Parcelas", "parcelas", "Parcela"]);
+  const dataTxt = campo(limpo, ["Data e Hora", "Data", "data e hora", "Data/Hora"]);
+  const cartaoTxt = campo(limpo, ["Cartão", "Cartao", "cartão", "cartao"]);
+  const funcaoTxt = campo(limpo, ["Função", "Funcao", "função", "funcao", "Tipo", "Pagamento"]);
+
+  const data = extrairData(dataTxt || limpo);
+  const parcInfo = extrairParcelas((parcelasTxt || "") + "\n" + limpo);
+  const valorCampo = paraNumero(valorTxt);
   const valores = extrairValoresMonetarios(limpo);
-  const data = extrairData(limpo);
-  const parc = extrairParcelas(limpo);
-  const banco = detectarBanco(low);
-  const descricao = extrairDescricao(limpo, low);
-  const categoria = categorizar(low, descricao);
 
-  if ((isComprovante || banco || parc) && valores.length) {
-    let escolhido = valores[0];
-    const idxValor = low.search(/valor|r\$|parcela/);
-    if (idxValor >= 0) {
-      const perto = valores
-        .map((v) => ({ ...v, dist: Math.abs(v.index - idxValor) }))
-        .sort((a, b) => a.dist - b.dist);
-      if (perto.length) escolhido = perto[0];
+  let valorParcela = null;
+  let valorTotal = null;
+  let parcelas = 1;
+
+  if (parcInfo) {
+    parcelas = parcInfo.total > 1 ? parcInfo.total : 1;
+    if (parcInfo.valorParcela) valorParcela = parcInfo.valorParcela;
+  }
+
+  if (valorCampo && parcelas > 1 && valorParcela) {
+    valorTotal = valorCampo;
+    if (Math.abs(valorCampo - valorParcela * parcelas) > 1 && valorCampo < valorParcela * parcelas) {
+      valorParcela = valorCampo;
+      valorTotal = valorParcela * parcelas;
+    }
+  } else if (valorCampo && parcelas > 1 && !valorParcela) {
+    valorTotal = valorCampo;
+    valorParcela = valorTotal / parcelas;
+  } else if (valorCampo) {
+    valorParcela = valorCampo;
+    valorTotal = valorCampo;
+  } else if (valores.length) {
+    const sorted = [...valores].sort((a, b) => b.valor - a.valor);
+    if (parcelas > 1 && sorted.length >= 2) {
+      valorTotal = sorted[0].valor;
+      valorParcela =
+        sorted.find((v) => Math.abs(v.valor * parcelas - valorTotal) < 1)?.valor ||
+        valorTotal / parcelas;
     } else {
-      escolhido = [...valores].sort((a, b) => b.valor - a.valor)[0];
+      valorParcela = sorted[0].valor;
+      valorTotal = parcelas > 1 ? valorParcela * parcelas : valorParcela;
     }
-
-    const parcelas = parc && parc.total > 1 ? parc.total : 1;
-    const valorParcela = escolhido.valor;
-    const valorTotal = parcelas > 1 ? valorParcela * parcelas : valorParcela;
-
-    let ano = null;
-    let mes = null;
-    if (data) {
-      ano = data.ano;
-      mes = data.mes;
-    }
-
-    const isCartao = !!(banco || parc || /cart[aã]o|visa|master|cr[eé]dito|parcela/i.test(low));
-
-    return [{
-      tipo: isCartao ? "compraCartao" : "gasto",
-      descricao,
-      valor: valorParcela,
-      valorTotal,
-      categoria,
-      tipoGasto: "Variavel",
-      recorrente: false,
-      dia: data ? data.dia : null,
-      parcelas,
-      banco,
-      ano,
-      mes,
-    }];
   }
 
-  let linhas = limpo.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 1);
-  if (linhas.length <= 1 && limpo.length > 20) linhas = [limpo];
+  if (!valorParcela && !valorTotal) return parseTextoLivre(limpo, low);
 
-  const out = [];
-  for (const linha of linhas) {
-    const vals = extrairValoresMonetarios(linha);
-    if (!vals.length) continue;
-    const valor = vals[0].valor;
-    const lowL = linha.toLowerCase();
-    let tipo = "gasto";
-    let tipoGasto = "Variavel";
-    let recorrente = false;
-    let dia = null;
-    let parcelas = 1;
-    let bancoL = null;
-    let ano = null;
-    let mes = null;
+  const descricao = extrairDescricao(limpo, estabelecimento);
+  const categoria = categorizar(descricao, low);
+  const banco = detectarBanco(low, cartaoTxt);
+  const forma = detectarForma(low, funcaoTxt);
+  const isCartao =
+    forma === "credito" ||
+    !!(parcInfo && parcelas > 1) ||
+    /cart[aã]o|visa|master|cr[eé]dito/i.test(low + " " + (funcaoTxt || ""));
 
-    const dLinha = extrairData(linha);
-    if (dLinha) { ano = dLinha.ano; mes = dLinha.mes; dia = dLinha.dia; }
+  const tipo =
+    forma === "pix" || forma === "debito" || forma === "dinheiro"
+      ? "gasto"
+      : isCartao
+        ? "compraCartao"
+        : "gasto";
 
-    let descricaoL = linha
-      .replace(/r\$\s*[\d.,]+/gi, "")
-      .replace(/\d{1,3}(?:\.\d{3})*,\d{2}/g, "")
-      .replace(/\d+,\d{2}/g, "")
-      .replace(/\s+/g, " ")
-      .trim() || "Lancamento";
-    descricaoL = descricaoL.slice(0, 40);
+  const finalMatch = (cartaoTxt || "").match(/final\s*(\d{4})/i);
 
-    if (/recebi|caiu|salario|salário|freelance|renda/i.test(lowL)) {
-      out.push({
-        tipo: "entrada",
-        descricao: descricaoL,
-        valor,
-        categoria: /salario|salário/i.test(lowL) ? "Salário" : /freelance|freela/i.test(lowL) ? "Freelance" : "Renda extra",
-        tipoGasto, recorrente: /todo\s*mes|todo\s*mês|salario|salário/i.test(lowL), dia, parcelas, banco: null, ano, mes,
-      });
-      continue;
-    }
-
-    const pLinha = extrairParcelas(linha);
-    if (pLinha && pLinha.total > 1) parcelas = pLinha.total;
-    if (/\d+\s*x|parcel|cartao|cartão|nubank|visa|master/i.test(lowL) || parcelas > 1) {
-      tipo = "compraCartao";
-      bancoL = detectarBanco(lowL);
-    }
-
-    out.push({
-      tipo,
-      descricao: descricaoL,
-      valor,
-      valorTotal: parcelas > 1 ? valor * parcelas : valor,
-      categoria: categorizar(lowL, descricaoL),
-      tipoGasto, recorrente, dia, parcelas,
-      banco: bancoL,
-      ano, mes,
-    });
-  }
-
-  if (!out.length && valores.length) {
-    const v = [...valores].sort((a, b) => b.valor - a.valor)[0];
-    out.push({
-      tipo: banco || /cart[aã]o|cr[eé]dito/i.test(low) ? "compraCartao" : "gasto",
-      descricao,
-      valor: v.valor,
-      valorTotal: v.valor,
-      categoria,
-      tipoGasto: "Variavel",
-      recorrente: false,
-      dia: data ? data.dia : null,
-      parcelas: 1,
-      banco,
-      ano: data ? data.ano : null,
-      mes: data ? data.mes : null,
-    });
-  }
-
-  return out;
+  return [{
+    tipo,
+    forma: forma || (tipo === "compraCartao" ? "credito" : "debito"),
+    descricao,
+    valor: valorParcela || valorTotal,
+    valorTotal: valorTotal || valorParcela,
+    categoria,
+    tipoGasto: "Variavel",
+    recorrente: false,
+    dia: data ? data.dia : null,
+    parcelas: tipo === "compraCartao" ? parcelas : 1,
+    banco,
+    cartaoFinal: finalMatch ? finalMatch[1] : null,
+    ano: data ? data.ano : null,
+    mes: data ? data.mes : null,
+  }];
 }
 
 export async function parseQuickAdd(texto) {
