@@ -786,45 +786,33 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
   const [ocrProgresso, setOcrProgresso] = useState(null);
   const [preview, setPreview] = useState(null);
   const [erro, setErro] = useState("");
+  const [rascunho, setRascunho] = useState(null); // revisao antes de salvar
   const agora = hoje();
 
   const processarImagem = async (fileOrBlob) => {
     if (!fileOrBlob) return;
     setErro("");
     setOcrProgresso(0);
+    setRascunho(null);
     try {
       setPreview(URL.createObjectURL(fileOrBlob));
       const extraido = await ocrImagem(fileOrBlob, setOcrProgresso);
       if (!extraido) {
-        setErro("N\u00e3o consegui ler texto na imagem. Tente um print mais n\u00edtido.");
+        setErro("Nao consegui ler texto na imagem. Tente um print mais nitido.");
         setOcrProgresso(null);
         return;
       }
-      setTexto((t) => (t ? t + "\n" + extraido : extraido));
+      setTexto(extraido);
       setOcrProgresso(null);
+      await montarRascunho(extraido);
     } catch (e) {
-      console.error(e);
-      setErro("Falha no OCR. Tente de novo ou digite o texto.");
+      setErro(e.message || "Falha no OCR");
       setOcrProgresso(null);
-    }
-  };
-
-  const onPaste = (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        e.preventDefault();
-        processarImagem(item.getAsFile());
-        return;
-      }
     }
   };
 
   useEffect(() => {
-    if (arquivoInicial) {
-      processarImagem(arquivoInicial);
-    }
+    if (arquivoInicial) processarImagem(arquivoInicial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arquivoInicial]);
 
@@ -834,148 +822,297 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
     e.target.value = "";
   };
 
-  const enviar = async () => {
+  const sugerirCartao = (banco, finalDigitos) => {
+    if (!cartoes.length) return "";
+    const b = String(banco || "").toLowerCase();
+    const fin = String(finalDigitos || "").trim();
+    const score = (card) => {
+      const n = String(card.nome || "").toLowerCase();
+      let s = 0;
+      if (fin && n.includes(fin)) s += 15;
+      if (b && n.includes(b)) s += 5;
+      if ((b === "bb" || b === "brasil") && (n.includes("brasil") || n.includes("facil") || n.includes("banco"))) s += 10;
+      if ((b === "nu" || b === "nubank") && (n.includes("nubank") || n === "nu")) s += 10;
+      if (b && b !== "nu" && b !== "nubank" && (n.includes("nubank") || n === "nu")) s -= 5;
+      return s;
+    };
+    let best = null, bestS = 0;
+    for (const card of cartoes) {
+      const sc = score(card);
+      if (sc > bestS) { bestS = sc; best = card; }
+    }
+    if (best && bestS > 0) return best.id;
+    if (cartoes.length === 1) return cartoes[0].id;
+    if (b === "bb" || b === "brasil") {
+      const c = cartoes.find((x) => /brasil|facil|banco/i.test(x.nome));
+      if (c) return c.id;
+    }
+    return "";
+  };
+
+  const montarRascunho = async (txt) => {
+    const lista = await parseQuickAdd(txt.trim());
+    if (!lista.length) {
+      setErro("Nao identifiquei valor. Ajuste o texto ou preencha manualmente.");
+      setRascunho({
+        descricao: "",
+        valor: "",
+        forma: "credito",
+        cartaoId: cartoes[0]?.id || "",
+        parcelas: 1,
+        ano: agora.ano,
+        mes: agora.mes,
+        categoria: "Outros",
+        tipoGasto: "Variavel",
+      });
+      return;
+    }
+    const p = lista[0];
+    const parcelas = Math.max(1, parseInt(p.parcelas, 10) || 1);
+    const valorParcela = Number(p.valor) || 0;
+    let forma = "credito";
+    if (p.tipo === "entrada") forma = "entrada";
+    else if (p.tipo === "gasto") forma = "debito";
+    else if (p.tipo === "compraCartao") forma = "credito";
+
+    // dicas no texto
+    const low = txt.toLowerCase();
+    if (/\\bpix\\b/.test(low)) forma = "pix";
+    if (/d[eÃ©]bito/.test(low)) forma = "debito";
+    if (/cr[eÃ©]dito|parcela|\\d+\\s*x|cart[aÃ£]o/.test(low) && p.tipo !== "entrada") forma = "credito";
+
+    setRascunho({
+      descricao: p.descricao || "",
+      valor: valorParcela ? String(valorParcela).replace(".", ",") : "",
+      forma,
+      cartaoId: sugerirCartao(p.banco, p.cartaoFinal),
+      parcelas,
+      ano: p.ano != null ? p.ano : agora.ano,
+      mes: p.mes != null ? p.mes : agora.mes,
+      categoria: CATEGORIAS.includes(p.categoria) ? p.categoria : (p.tipo === "entrada" ? "Outros" : "Outros"),
+      categoriaEntrada: CAT_ENTRADA.includes(p.categoria) ? p.categoria : "Outros",
+      tipoGasto: p.tipoGasto === "Fixo" ? "Fixo" : "Variavel",
+    });
+    setErro("");
+  };
+
+  const analisar = async () => {
     if (!texto.trim() || carregando) return;
     setCarregando(true);
     setErro("");
     try {
-      const lista = await parseQuickAdd(texto.trim());
-      if (!lista.length) {
-        setErro("N\u00e3o identifiquei nenhum lan\u00e7amento. Tente algo como 'gastei 45 no mercado'.");
-        setCarregando(false);
-        return;
-      }
-
-      const novasEntradas = [];
-      const novosGastos = [];
-      const novasCompras = [];
-      let semCartao = 0;
-
-      lista.forEach((p) => {
-        if (!p.valor) return;
-        const categoriaGasto = CATEGORIAS.includes(p.categoria) ? p.categoria : "Outros";
-        const categoriaEntrada = CAT_ENTRADA.includes(p.categoria) ? p.categoria : "Outros";
-
-        if (p.tipo === "entrada") {
-          const anoE = p.ano != null ? p.ano : agora.ano;
-          const mesE = p.mes != null ? p.mes : agora.mes;
-          novasEntradas.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaEntrada,
-            recorrente: !!p.recorrente, dia: p.dia || 5, ano: anoE, mes: mesE });
-        } else if (p.tipo === "compraCartao") {
-          if (!cartoes.length) { semCartao++; return; }
-          const bancoStr = String(p.banco || "").toLowerCase().trim();
-          const scoreCartao = (card) => {
-            const n = String(card.nome || "").toLowerCase();
-            let s = 0;
-            if (bancoStr && n.includes(bancoStr)) s += 5;
-            if ((bancoStr === "bb" || bancoStr === "brasil") && /bb|brasil|facil|banco do brasil/.test(n)) s += 5;
-            if ((bancoStr === "nu" || bancoStr === "nubank") && /(^|\b)nu\b|nubank/.test(n)) s += 5;
-            if (bancoStr === "inter" && /inter/.test(n)) s += 5;
-            if (bancoStr === "itau" && /ita[uÃº]/.test(n)) s += 5;
-            if (bancoStr && bancoStr !== "nu" && bancoStr !== "nubank" && /(^|\b)nu\b|nubank/.test(n)) s -= 3;
-            return s;
-          };
-          let cartao = null;
-          let best = 0;
-          for (const card of cartoes) {
-            const sc = scoreCartao(card);
-            if (sc > best) { best = sc; cartao = card; }
-          }
-          if (!cartao || best <= 0) {
-            cartao = cartoes.length === 1 ? cartoes[0] : null;
-          }
-          if (!cartao) { semCartao++; return; }
-          const parcelas = Math.max(1, parseInt(p.parcelas, 10) || 1);
-          const valorParcela = Number(p.valor);
-          const valorTotal = p.valorTotal != null ? Number(p.valorTotal) : (parcelas > 1 ? valorParcela * parcelas : valorParcela);
-          const anoC = p.ano != null ? p.ano : agora.ano;
-          const mesC = p.mes != null ? p.mes : agora.mes;
-          novasCompras.push({ id: uid(), cartaoId: cartao.id, descricao: p.descricao, categoria: categoriaGasto,
-            valorTotal, parcelas, ano: anoC, mes: mesC });
-        } else {
-          const anoG = p.ano != null ? p.ano : agora.ano;
-          const mesG = p.mes != null ? p.mes : agora.mes;
-          novosGastos.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaGasto,
-            tipo: p.tipoGasto === "Fixo" ? "Fixo" : "Vari\u00e1vel", recorrente: !!p.recorrente, dia: p.dia || 10,
-            ano: anoG, mes: mesG });
-        }
-      });
-
-      const partes = [];
-      if (novasEntradas.length) partes.push(`${novasEntradas.length} entrada(s)`);
-      if (novosGastos.length) partes.push(`${novosGastos.length} gasto(s)`);
-      if (novasCompras.length) partes.push(`${novasCompras.length} compra(s) no cart\u00e3o`);
-      notificar(`Adicionado: ${partes.join(", ")}${semCartao ? ` \u00b7 ${semCartao} ignorado(s) por falta de cart\u00e3o` : ""}`);
-      onFechar();
+      await montarRascunho(texto);
     } catch (e) {
-      setErro(e.message || "N\u00e3o entendi. Tente reformular.");
+      setErro(e.message || "Falha ao analisar");
     } finally {
       setCarregando(false);
     }
   };
 
+  const parseValor = (s) => {
+    let raw = String(s || "").trim().replace(/r\\$/i, "").trim();
+    if (raw.includes(",") && raw.includes(".")) raw = raw.replace(/\\./g, "").replace(",", ".");
+    else if (raw.includes(",")) raw = raw.replace(",", ".");
+    return parseFloat(raw) || 0;
+  };
+
+  const confirmar = () => {
+    if (!rascunho) return;
+    const valor = parseValor(rascunho.valor);
+    if (valor <= 0) {
+      setErro("Informe um valor valido.");
+      return;
+    }
+    const desc = (rascunho.descricao || "Lancamento").slice(0, 60);
+    const ano = Number(rascunho.ano) || agora.ano;
+    const mes = Number(rascunho.mes);
+    const mesOk = mes >= 0 && mes <= 11 ? mes : agora.mes;
+
+    if (rascunho.forma === "entrada") {
+      setEntradas([...entradas, {
+        id: uid(), descricao: desc, valor,
+        categoria: CAT_ENTRADA.includes(rascunho.categoriaEntrada) ? rascunho.categoriaEntrada : "Outros",
+        recorrente: false, dia: 5, ano, mes: mesOk,
+      }]);
+      notificar("Entrada adicionada.");
+    } else if (rascunho.forma === "credito") {
+      if (!cartoes.length) {
+        setErro("Cadastre um cartao em Cartoes antes.");
+        return;
+      }
+      if (!rascunho.cartaoId) {
+        setErro("Escolha o cartao.");
+        return;
+      }
+      const parcelas = Math.max(1, parseInt(rascunho.parcelas, 10) || 1);
+      const valorTotal = parcelas > 1 ? valor * parcelas : valor;
+      setCompras([...compras, {
+        id: uid(),
+        cartaoId: rascunho.cartaoId,
+        descricao: desc,
+        categoria: CATEGORIAS.includes(rascunho.categoria) ? rascunho.categoria : "Outros",
+        valorTotal,
+        parcelas,
+        ano,
+        mes: mesOk,
+      }]);
+      notificar(parcelas > 1 ? `Compra ${parcelas}x no cartao.` : "Compra no cartao adicionada.");
+    } else {
+      // debito, pix, dinheiro -> gasto variavel
+      const sufixo = rascunho.forma === "pix" ? " (PIX)" : rascunho.forma === "debito" ? " (debito)" : rascunho.forma === "dinheiro" ? " (dinheiro)" : "";
+      setGastos([...gastos, {
+        id: uid(),
+        descricao: desc + (desc.includes("(PIX)") || desc.includes("debito") ? "" : sufixo),
+        valor,
+        categoria: CATEGORIAS.includes(rascunho.categoria) ? rascunho.categoria : "Outros",
+        tipo: "Vari\\u00e1vel",
+        recorrente: false,
+        dia: 10,
+        ano,
+        mes: mesOk,
+      }]);
+      notificar("Gasto adicionado.");
+    }
+    onFechar();
+  };
+
+  const setR = (campo, valor) => setRascunho((r) => r ? { ...r, [campo]: valor } : r);
+
   return (
-    <Modal titulo="Lan\u00e7amento r\u00e1pido" onFechar={onFechar}>
+    <Modal titulo="Lancamento rapido" onFechar={onFechar}>
       <p className="text-xs text-neutral-500 mb-3">
-        Digite, cole texto, ou envie um print. O OCR l\u00ea o texto automaticamente.
+        Envie o print ou cole o texto. Depois confira valor, data, parcelas e a forma de pagamento.
       </p>
+
       <div className="mb-3 border border-dashed border-neutral-700 rounded-lg p-3 text-center">
         {preview ? (
           <div className="relative">
             <img src={preview} alt="preview" className="max-h-28 mx-auto rounded object-contain" />
-            <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-neutral-900/80 rounded px-1.5" onClick={() => setPreview(null)}>\u00d7</button>
+            <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-neutral-900/80 rounded px-1.5" onClick={() => setPreview(null)}>x</button>
           </div>
         ) : (
           <div className="space-y-2 py-1">
-            <p className="text-xs text-neutral-500">Cole um print ou escolha uma foto:</p>
+            <p className="text-xs text-neutral-500">Foto do comprovante</p>
             <div className="flex gap-2 justify-center flex-wrap">
-              <label className="inline-flex items-center justify-center gap-1.5 bg-amber-400 text-neutral-950 font-medium text-sm px-4 py-2.5 rounded-lg cursor-pointer active:bg-amber-300">
+              <label className={btnSec + " cursor-pointer"}>
                 Galeria
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={onFile} />
+                <input type="file" accept="image/*" className="hidden" onChange={onFile} />
               </label>
-              <label className="inline-flex items-center justify-center gap-1.5 border border-neutral-700 text-neutral-200 text-sm px-4 py-2.5 rounded-lg cursor-pointer active:bg-neutral-800">
-                C\u00e2mera
-                <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={onFile} />
+              <label className={btnSec + " cursor-pointer"}>
+                Camera
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
               </label>
             </div>
           </div>
         )}
         {ocrProgresso != null && (
-          <div className="mt-2">
-            <div className="text-xs text-amber-400 mb-1">Lendo imagem\u00e2\u00e2\u201a\u00ac\u00a6 {ocrProgresso}%</div>
-            <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-400 transition-all" style={{ width: `${ocrProgresso}%` }} />
-            </div>
-          </div>
+          <p className="text-xs text-amber-400 mt-2">Lendo imagem... {ocrProgresso}%</p>
         )}
       </div>
-      <textarea
-        autoFocus
-        className={input + " min-h-32 resize-none"}
-        value={texto}
-        onChange={(e) => setTexto(e.target.value)}
-        onPaste={onPaste}
-        placeholder={"Um lan\u00e7amento por linha...\nEx:\ngastei 45 no mercado"}
-      />
-      {erro && <div className="text-xs text-red-400 mt-2">{erro}</div>}
-      <p className="text-xs text-neutral-600 mt-2">O texto \u00e9 enviado \u00e0 IA da Anthropic s\u00f3 para identificar valor e categoria.</p>
-      <div className="flex justify-end gap-2 mt-4">
-        <button className={btnSec} onClick={onFechar}>Cancelar</button>
-        <button className={btn} disabled={carregando || ocrProgresso != null} onClick={enviar}>{carregando ? "Analisando..." : "Adicionar"}</button>
-      </div>
+
+      <Campo label="Texto (OCR ou digitado)">
+        <textarea
+          className={input + " min-h-[72px]"}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Cole o texto do comprovante ou o que o OCR leu"
+        />
+      </Campo>
+
+      {!rascunho && (
+        <button type="button" className={btn + " w-full mb-3"} disabled={carregando || !texto.trim()} onClick={analisar}>
+          {carregando ? "Analisando..." : "Reconhecer"}
+        </button>
+      )}
+
+      {rascunho && (
+        <div className="space-y-3 border border-neutral-800 rounded-xl p-3 mb-3">
+          <div className="text-xs text-amber-400 font-medium">Confirme antes de salvar</div>
+
+          <Campo label="Descricao">
+            <input className={input} value={rascunho.descricao} onChange={(e) => setR("descricao", e.target.value)} />
+          </Campo>
+
+          <Campo label="Valor da parcela / valor">
+            <input className={input} inputMode="decimal" value={rascunho.valor} onChange={(e) => setR("valor", e.target.value)} placeholder="0,00" />
+          </Campo>
+
+          <Campo label="Forma de pagamento">
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: "credito", label: "Credito" },
+                { id: "debito", label: "Debito" },
+                { id: "pix", label: "PIX" },
+                { id: "dinheiro", label: "Dinheiro" },
+                { id: "entrada", label: "Entrada" },
+              ].map((f) => (
+                <button key={f.id} type="button" className={chip(rascunho.forma === f.id)} onClick={() => setR("forma", f.id)}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </Campo>
+
+          {rascunho.forma === "credito" && (
+            <>
+              <Campo label="Cartao">
+                {!cartoes.length ? (
+                  <p className="text-xs text-red-400">Cadastre um cartao na aba Cartoes.</p>
+                ) : (
+                  <select className={input} value={rascunho.cartaoId} onChange={(e) => setR("cartaoId", e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {cartoes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nome}</option>
+                    ))}
+                  </select>
+                )}
+              </Campo>
+              <Campo label="Parcelas">
+                <input className={input} type="number" min={1} max={48} value={rascunho.parcelas}
+                  onChange={(e) => setR("parcelas", e.target.value)} />
+              </Campo>
+            </>
+          )}
+
+          {rascunho.forma === "entrada" ? (
+            <Campo label="Categoria">
+              <select className={input} value={rascunho.categoriaEntrada} onChange={(e) => setR("categoriaEntrada", e.target.value)}>
+                {CAT_ENTRADA.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Campo>
+          ) : (
+            <Campo label="Categoria">
+              <select className={input} value={rascunho.categoria} onChange={(e) => setR("categoria", e.target.value)}>
+                {CATEGORIAS.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Campo>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Mes (1a parcela)">
+              <select className={input} value={rascunho.mes} onChange={(e) => setR("mes", Number(e.target.value))}>
+                {MESES_LONGOS.map((m, idx) => <option key={m} value={idx}>{m}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Ano">
+              <input className={input} type="number" value={rascunho.ano} onChange={(e) => setR("ano", Number(e.target.value))} />
+            </Campo>
+          </div>
+
+          <button type="button" className={btn + " w-full"} onClick={confirmar}>
+            Confirmar lancamento
+          </button>
+          <button type="button" className={btnSec + " w-full"} onClick={() => setRascunho(null)}>
+            Voltar / editar texto
+          </button>
+        </div>
+      )}
+
+      {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
     </Modal>
   );
 }
 
-/* ---------------- app ---------------- */
-
-const ABAS = [
-  { chave: "inicio", nome: "In\u00edcio" },
-  { chave: "entradas", nome: "Entradas" },
-  { chave: "gastos", nome: "Gastos" },
-  { chave: "cartoes", nome: "Cart\u00f5es" },
-  { chave: "monitoramento", nome: "Monitoramento" },
-];
 
 export default function App() {
   const [aba, setAba] = useState("inicio");
