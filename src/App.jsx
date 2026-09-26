@@ -975,19 +975,36 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const limparQuery = () => {
+      if (!window.history.replaceState) return;
+      const u = new URL(window.location.href);
+      if (!u.searchParams.has("share")) return;
+      u.searchParams.delete("share");
+      window.history.replaceState({}, "", u.pathname + u.search);
+    };
+
+    const tentarShare = async () => {
       const file = await consumirCompartilhamento();
-      if (!cancelled && file) {
-        setArquivoShare(file);
-        setRapido(true);
-        if (window.history.replaceState) {
-          const u = new URL(window.location.href);
-          u.searchParams.delete("share");
-          window.history.replaceState({}, "", u.pathname + u.search);
-        }
-      }
+      if (cancelled || !file) return false;
+      setArquivoShare(file);
+      setRapido(true);
+      limparQuery();
+      return true;
+    };
+
+    (async () => {
+      const qs = new URLSearchParams(window.location.search);
+      if (qs.get("share") === "1") setRapido(true); // abre modal enquanto OCR carrega
+      await tentarShare();
     })();
-    return () => { cancelled = true; };
+
+    const onMsg = () => { tentarShare(); };
+    window.addEventListener("meu-caixa-share-received", onMsg);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("meu-caixa-share-received", onMsg);
+    };
   }, []);
 
   if (!(p1 && p2 && p3 && p4)) return null;
