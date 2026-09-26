@@ -857,8 +857,28 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
         const categoriaEntrada = CAT_ENTRADA.includes(p.categoria) ? p.categoria : "Outros";
 
         if (p.tipo === "entrada") {
+          const anoE = p.ano != null ? p.ano : agora.ano;
+          const mesE = p.mes != null ? p.mes : agora.mes;
           novasEntradas.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaEntrada,
-            recorrente: !!p.recorrente, dia: p.dia || 5, ano: agora.ano, mes: agora.mes });
+            recorrente: !!p.recorrente, dia: p.dia || 5, ano: anoE, mes: mesE });
+        } else if (p.tipo === "compraCartao") {
+          if (!cartoes.length) { semCartao++; return; }
+          const cartao = cartoes.find((c) => p.banco && c.nome.toLowerCase().includes(String(p.banco).toLowerCase()))
+            || cartoes.find((c) => /bb|brasil|facil|visa/i.test(c.nome) && /bb|brasil/i.test(String(p.banco||"")))
+            || cartoes[0];
+          const parcelas = Math.max(1, parseInt(p.parcelas) || 1);
+          const valorParcela = Number(p.valor);
+          const valorTotal = p.valorTotal != null ? Number(p.valorTotal) : (parcelas > 1 ? valorParcela * parcelas : valorParcela);
+          const anoC = p.ano != null ? p.ano : agora.ano;
+          const mesC = p.mes != null ? p.mes : agora.mes;
+          novasCompras.push({ id: uid(), cartaoId: cartao.id, descricao: p.descricao, categoria: categoriaGasto,
+            valorTotal, parcelas, ano: anoC, mes: mesC });
+        } else {
+          const anoG = p.ano != null ? p.ano : agora.ano;
+          const mesG = p.mes != null ? p.mes : agora.mes;
+          novosGastos.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaGasto,
+            tipo: p.tipoGasto === "Fixo" ? "Fixo" : "Vari\u00e1vel", recorrente: !!p.recorrente, dia: p.dia || 10,
+            ano: anoG, mes: mesG });
         } else if (p.tipo === "compraCartao") {
           if (!cartoes.length) { semCartao++; return; }
           const cartao = cartoes.find((c) => p.banco && c.nome.toLowerCase().includes(String(p.banco).toLowerCase())) || cartoes[0];
