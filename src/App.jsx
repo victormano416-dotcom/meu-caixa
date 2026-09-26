@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
 
+const SKELETON_KKK = "data:image/webp;base64,UklGRlwyAABXRUJQVlA4WAoAAAAwAAAAGwIAGwIASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZBTFBIIQkAAAEPMP8REQKv/v+NbT35yfJrkeWOjCjdnZY83EGmfm+BnEEiZ7gEvyXhFnieI+cSd5RnnMnIWe9jHf2K0Whm/f/a+32piOj/BOD//f8u5k+voPFbF0C+1JdJenWVJI22dnihLHFodO2joKuMaFT1E6+Kp5umdMY1WEV5winaJ8ISNkVlgorqjFmC09Nm/BI2PX0m6uG0WYLVkua8lryeoGWf27SUubgEaqlLaBfMEqySfsE9G/wSwhI2JbwY31HwnV9618MsASrzJfN/SvslqyJfMkuw7wqlJeQlpEtuCXYJ7tlgnyxcMk9Xv4Knq12ISuqCNiVlCfuFsASvJC8hLcgpwRr6nH3K2nqMlrqEMoenLM8ZLWkOatfQpoyaOgW1ZQl5CWkJmDJLgNqfnol6ysymp86EJXg9r2ecmsRZuwSjJk9hBVHP/o6iPBvqOr6wBNcP1NMOfhCXwGdA0FYHXMG2hraCODJaEqegrA+MljzgCM+AYVSzPxvK1Pbsq1NBVT8xahoZq54PzBQ99cVEPoECvnmyJT2NDAAquaFrogEKGdBU+ZOiaht47KpoRklNPzj0A9S0QwBJCzQt5cCDAcohKkgDN9oPVIB/OxwNkA5RA/7txALoJKkCb40cgEYy6kAbBABF0T6IALKiPODXvxVJUR2RQNfw/gHPHSq5ifuxQ+bLk4BEBnH9Py1QufXRBjR6aYn0ALmVEQ12OgXbYD9xwAcgPZMRiQxnHgoTyUE+CRoySXNImtIhkz5ryiStunRi6onXkEcRqhJJs9OjkX92eENDPmS6gyskrYY08oNE0mlBokcnQyYZnrCIxHDwO8moBlO0Ojagb+CZU4BRHJSD1xGATkPS1UNQkA6ZTCS3waYApEch/4DnGhLpQPKPJqKSTPLPJqjDFpJ/pyqfhD5h5CXSHDZqyqSpJOOMXYLTQ/LliZe3k6jcOsnwlVGQl0k0+nbIo03ePjCFs1FJxBw1RFQiz1ktSVcZYc6rKDToyjYUvoE2tanY6S9EJdsFiqvckBmvGHlh0Ce+QVoN9cJnSKeB3Kb+jPQKMhnRJiwZpDX6RhJ1pnFTYmZcZVTQSdoZW0ijw3HSZQ3u8HczNpFOWB99kGQ/QaeXR5IvSb41cmhajqYdXlsUbuIs+cGBHdBhZ9Tg+sH0gUUmhZF/RKJdAGmk/QE3lCkHdFpphgH74dQClU7ehnyl0GvAlcwgKpGmb0C/kBiloUegzRgAXV4jUK40GnnmWqWVFVFp5wBgp5eUBw77lcwgrdAjXwE3eeGGTlkbCrfDq7lGI2xnxL+RG/pMoRW0D4hK8lsveGGZtIfTQWYQFQbtUuImLJH+DgoD6euMOaDTyCkMSOTWZjBstHJ2euxkvKHSySn0qKP/vVAYZHUOfZnL3ERlnnz4SpRT6faT0zgCaSQ18su3dFmdzFPhpNEJ+gS5YcqdVAZBnyE9+ow9KdzENH6ZtKgzOM2MsoB9xkxQ1AakGXcC0sr5Ij2AGX/W6SRZfAcayQ9dafRSOt8mUsDbPB98P4DKIOeLxB7Buf0PCKAwyilEjWkmAO0TtMBOSiF3mh5xgeQGZNKIybSMae6vSdICpBP0EW4z/7uhH7ZDEJP49TluiUOLxiglgrySRxsqKSORN+wj2kJaIRH9Uj0JO+nV/DPJ8IckP0IGEZkRjQyH1yc84ivkSzKKSIzoZMgkvzoKg+9MHIrI3BJJnzj5qjeSRBtYIZlkyDP/+3uv+Hfkd6aBk7CP4r/N7OFf6BqJJm3al0984hs2k/4tRa5+5jO/CHQSTU64FNoXyw8BmfSJpFXy+7/5iz8GoJOmCikMO/l67id+7Ie+D0AmtyQplqmX/gd+7DsAoJNvdBoxAYMX9UDnv22wk5skj3ZAG/yR+w53QCdfExIr/U6LPPUp6+1gJxkl4WtkPKl/8GcjkNyklEMmOYo1feSkkEHKftjJiD74zfwhM4KUNpU4/KHyKZwWMW6nG7CNXClnSU4+O3W1nqHq+dXfnChORD+EK9/xuxMZcmjmUggTQkcBZWJL3suziST2mf0jThpHvsyUTxkl7DO/W6EAh9lt+/0FvAo/IS2R5hL/Lqzg63YFbxsV/cLLCOn5jldvasAlOg0G7Uo0CnCNQdp+D99YQhRWbuJ3SotAPfmrCRo1cZ+Jouohj0KZ4XeKQx21KRpBbZBveVMc2h10cvrorYP/ygWKQzu0Ky/E7V8iTb9CKw07aYoWTrm6At/UlVuMuEb6csnK2WbaJSMkkXEiKNomfNFVX/5CI0O7ZOVEIHPoednI4Qu00Y1SQJL/ytutlM6HmiVAan2MlbI/xkhJj4HYf3qIFZMeYsSgu0/eB7k/Cfz9bVYOgHybEVVug+h6mxXVbjOi+m2QnHi7kZSXsC+hLqHdB8l9BYm3xyVsSwiS8pWf0pGuuI+feUn5El6fOEnpikU6sZLyNVQF6YoBfrAPjKR8A/YBJKc70EhGUfkKjllcugVfITdR+UIcJTKISvfg3+hF5ZvwWla665NOVL6wnQlfQ1pQWAKDDlzZ5rIWXnBi+hUzlaIWzNEoMReClHYF84xKzAVaIfVBTgeubDrMXCeFlEdZGfsVzDcyyMhXzKWoApcoIz3MikB/RCXplxBktEdFGXUuXigkuQYjYn+Y07YfvDzeEeTFO6KI/Ih8oDzeYpbgxMULSQlvCRLq4zYJ/REYRAl8SD1QwP6YNDAPy5z+32toB/uwfe4zN+wyysQfkZ+6AQf3sDqBzv2OStLL8fi3kO/YSYaHtTMLIJPmEkT0MwDYSVxv5CZmO2TSXCtkfFh7XCYpJpzgxi6gnvgTc0Mljb5dkDuke5KAcmIP+R50OeaQbqq0El6TxCPK43aSb5PxIVnGF8nwkPS4TPJTpH8IHpdIZtKd2Vu6k/Ah0gxAmluqfRRIgm9imEh7S3ESDN4zAmlu2e3D+uGctLck97AmASLs4963hPc8rIp47xIef6Erco97/8OKiMcvyenYST9ll+CWYHXkuUb3pIWJvoSmJT0nNn1YT33S+lRTFCcq/RLcErySdsGp4ZRfQFFTp+oSylNn9JUFhSdsJ+2MX8DOsICiJk/tSyia3Nm+iE1Jek54fXinEc6yKABWUDggRCcAAFDRAJ0BKhwCHAI+bTKWSSQ/v6YjEzlz8A2JZW7VHHPXxoWePiDMHJAfoB/INeNPv9AP479C2uNgr/QD+AcKP3AD8AL1ifGEqzv7v/K+khxz3I/M/w3m07TuvvOU6f833+1/aD3ffpz2F/6z5Zf7b+8vzGftb+7HvD/8/90vdj/gvUL/xv/O60r95vYM/dv08/ZO/u3/r9MP//+wB///UA///DO/gb+gH1E6c/jf+lvsnq8a99+//S/sP5D/DT529gK4h/av61+Ovoh2T/zP9e9gj2k+lf7n1zpqf2bQo5Qx4//O8g37N/uv2h+Av9h/Tp9m3pJjB3yYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyYVF+TCovyUuRMETVMvrJNTRylevIJcPp0VSxyKqWORVSxyKqWGy9Uu9YnjAKA/TV27ITAp6kGBrY5FVLHIqpY5FVLG3hVHe6G1JyrxshInGcdllVLHIqpY5FVAsiVYq3UC+Gg84YrZunX8WlF+TCovyYVF+TCoPSkwihyacT6/DUxyo91SM2WkV6/w+YY620UlHsgA39kAG/sgA39WYUhXH+/WEregO1mmXqegKgSznKjYYV8lSonrS2K/g575MKi/JhUX5MKi/GTRte6B9x1zIBDgXHMLeJQ0JD4y1IV1gjxOLDTcXnlstQpIvD7bvkwqL8mFRfkwqL5vVQQST8BjnfiwyPNv+WDdZCGHPPsHeVLHIqpY5FVLHHfW8Wb4uup9CH6Q8RZ6igHunF2QAb+yADf2QAb+qL/rJJ0dK+m2V2Z0elB2LzB7wDRYb7lxndNYubqkLieI75MKi/JhUX5MKgzAWLpGTlADGQdCFuwMrFLofkf3nfHxo1/jpObYm6c3NGkPAUNyv7Hg4yyH6AVAsqpY5FVLHIqpTHNHIB8Z/gu2oGOEPD7oRAp5ZYR88qA/cJnKAIGbRwrqSSRUX5MKi/JhUXzWBFq19ngRFZycvw90M1P5ltcwSjeQU/FDOqIS4KtACR6Jc6r2bvHwEKM5KYa7WcdllVLHIqpY5EypBtBSaS/SSYNksCo+wKpvmkhTv4rdX5UfFZHgjZB5f6HpFFMVhO5iqJVzjyeC//IqKpY5FVLHIqpYcLwvaTCce6QqCoImlpF49MnfD4rAcJqrAfLuyP9+RXYPGasztbH5Q3ghWGNUX5MKi/JhUWxay08l4l302bdAje/VwdyrdnnEnVIKK/KNMcPF8dtZT2XV0oqQqIf4okCCyqljkVUsbly3QUVUvNZfGWXxkPnZymOo2komvGrWTi/tStYGUDeqh+x4TfRfb7xbjhS/bfpzVOG6AqQZicHt3yYVF+TA1vMaLb9VLEkk197sOIKndTseKT6697ciwGxWR5RQ7yN19FHNWWef+DNquk70RuYJOjgnvyYVF+TCoMoTDEhiTfS05DK4zJUbUYGAHVBx3cj0G/EKKDJw+Qb84Q3h4glVwWGeSSKi/JhUWxaRwBR9VvYBzVgwq/yIFqVEeN74g4spdXsQl42jlEwEbIncdmdm/cKbwKCkWYIFXctTiv+zkJRKvUb2sUX2GCMfjQKb5ZYD7b91LHIqpY5FVKOpPt6zVe/0sb48IwDcaKJxMmIyu6zkGgAQEOWQyp/vqtw5zSW9/GdjMj0oLx02tSB4OBEa/QoHUG70NKbiFFONIBtgILKqWORVSxuqVKSQfT2HZRWUVXF+m4LP/hx0tJscuWHM5uxayETCYgcKP83nDFGQGlu5LkV7gw05k7PKZqFs1gtBHcqMGgBv7IAN/ZABv01pjyC2JsjopqYQnEXuFc4rlSYXQj/v+4NMs9S1eMI0famFhHhUX5MKi/JhUWu8tzW93y6g+4Fxs7JQCv3rHOL5fMGWH5Wpnwke07WcdllVLHIqXFx7nfrwTWztRN/EJORG6XLDkS7KKfEJOUizI63LXD0sNEOnON/TWMmZNd0QA2WVUsciqlE9rseSa78+B/Yp5lpbssqqSmxVQNBJnH3dwXoqXEj0QMs668T5XFZP1Jw2VQuyADf2QAb9EOz4OwQ7QM6t4b/Qs3WGi5O2Gdj4z0UVYiqlNO1/w0nvem4nPjZh8G87LKqWORLWdGfTVxi9gtX+xMdr6vyYVCBwciqljkVUpmfRdSFnMfQd+6JyKqWORVSxyKqWORLOBr+WrLYR6ndRzji3EKkVUsciqljkVHAAD+/dUgAAAAAAAAAAAOH8OnnfeDYZ+Wc31Jl/1dMWnFuTPXQTmnlrf///N7hRmCHZu6FXP02AnU+mdG0SzT6ATotk5Vpi4qcNCV+e0/wC8VV3l8itrM3vKp0jqktlt8bnqfhqq2NVz9jIyNs2SrbQWjHv4NlCsLABNFR/AD6szA4fp9imn/q1Q9uKullzpBmMGDY+Vt+iZOTI3pzMseKfa+Y4hoTMCDrep2VabynoivDZYSxIGYAHNIN2wemYQ7oSptKNMBBww0jkQ5K6zGlRBswNHsfou0Wa7ArRMsRqwyAAVfeaEdYqewcCuCBZsIUsV0T/urgBM8atnLpxtgYckY+SgTYzAlG01aBxnbQxM5S5oubvknPJvq8Ec7mObHve4sl9DCTENlVo6XPQBcXHEtTYxiKPkueRoKZ3YYAARrojHz/0v8qcASgg1A/mHK9vhAVcZIMt6RlGm8/BODjVDXKDJH1Xs3j15ZO41HtMr71Y2aQq/HWNB53luNZcJJzS9XwLtYGyh8HLhTCzZUpB/l84rvFS0c14lSEY2fg1kABLlF3fnXEKKKn5foyks7iLtMyRHOBX32zsvQfXsOz5ltnEyOpX96V9AYYSzhg0GxmrlLUKNoJR2XNg1LH7RUVooXxj9z3SFDcHjY1G2jPvmV6HHrWMQmyu3TVxIN/BkwKtafHODncQmH9X3TylCbz+Yx/Y2POTG/FWgnp/+suPfV9BWW7cbdt5R7BahUo+SSSLH4LJccYmzn/TIQmcTQ065LSkFCm1Dku4Rxh+hwAY3xzUaJB7D8Yb1VkEDgAACzXR3o7ZPhPWgpYBHKq6U02EX0Psd8J57xj1MSiFl5vvwh0yqYA+m1Ik1wL6obGI3hZqb1VbnUpbCwJRq3fQ4hnyRtEIRny2X8k7f+7LvwhxL6Yj2XVQil6PLYJHdm7Bk+u68Uh0ofU/e5wPPh4p9o6FFSLkoo40qQLvrZB7uiAqZOzf0aLhvcQz4uBxiwNcXUVPj763axpkuM/Iz0nP+usA+gurtgh4qTCVnD+V3MUwoNhKblB/0pYU+pikbZass9r5UgvmbJ7NnoADz/AALcdYqwr5vYOcxMF1Gbhj2BiFeGvpDxmfnAJurXbY5uk8sUITRvBXiUZ/qUbsWuasR5MLRa8M3Uz/VXsMOlwdaVczoqR/DWYQA78IiCwKIcgnrq1MiLvRoE4teXK7nwZ530cbydwYxmIp4LRFA6aanmK5ekoXcXQ+IMSnpcdpfuJqHgtUDd5mvJugr83GH16PlptytQ2ys8XyuTut9W9d4Yz57FErDHV6c2I4AJUgGeHcgVNqP5Ia88n85ZuYmrR/fD/gtqCdyVDdH3+clfWGkuzkZTZhfXeaCAlBMysogAAVQtwlR9tingtDjUvQ9/PhtM4aZmi5zThxeIUTxWOe5hMBKLx7P9cjZwwRI3SVUKIGweSfgpEGtLoZvOsLcl22QEF6cQutEpV/nsAABIfwT/EfUtqyMaDvv028Ij571SyscuxwelRbokg//e7jTlHnt9hWEwycek8ihJc/ndyvJzCgQcjogAPUeLWQpIFoS1b2DAccNKV39cd3x1svH1Sj/NpVgsy4AzUohnaz6I7YBTuMw9i5/vWho26Er9d5K1wh4fjeD9gfSEhSsAuKK51AK25sbsXRa2/wdLcZkne2L26N8zLvl8aUYEOtNH//faXzjn/v1WdHEjm2wFWfY74XTMZuAAWoifitVc0AX3c4NApEsdoYGlohsGaZLPzvC75uc8+Ffxqx3DldwU+iL7xalNqldrIrYjReK7EGSB/bYQv2bv52QB/ZsVoffzLjjRa8lyGei6smb8NucibNne7GEtwmKZMsNEHxoNf0KEKh3P4Rd+XCAG521dsZgy4iSIyFUPzfczvflLBGNIJAaYbFk59vYeJL7/66SluFGL+YJjqu0hxAvzq0fSYC0lEKDGZS8mSisvgVTHpkQmtpbuKIRCg/83ko/H9DKR23X2V0kR889emmSurdnoKgOHkQ3T282P2C5UAAcv+I9FkTxJ2NRJR1it1vODhoMDloCj7lbOWrlR90VTmjQPJzSRbtGNyNeoTsT8QJBc2QjCPNAvcqqfa1krJColvArPnZ6293VAfLsA41jlju9PaUoqJJal2UHCuFjtHaWJVSFp9n9B11ZSdpUwMc4Bb2+07kxiYgzrskwoWKRpseWzqZugOf4fOfqHNntQlaPG+SlP/Yx2SshOqHtA9q1RvgFSMKYlLKciutANIAfg+7Yw7cXIy4u25UG1H7Q8XLOdwHNfSFkOfpsCb3RhO6gutqzV+QwnO1exy9FY/JpQP/fBPHeZLxfACr7ANnUlhPJUnYeRR7YLPZITq7IW/qFu4/NgEOGsRFZurExCs+49xeak7QQ7qjVHZsjVepGjMg/VtQVOQ3lSeqOPU4B2APA1OkACQCj2sg1TwNYPqi+XYbHnxNtR3F3fPqVzQpAUGM6aAa816NsC7YmmneldpIdJnPGUqKW+MTQxD4ixmX9LS1sA6ozq375OewqmCkdeH/A0/6N4NGdFp71aXhCtJjNQkZNikcIuIzb95Hkj3FRyl+lQ+n7VT3k7z1ryaXJ1HCHH97X1H1a2/szT01gRQCg4+uF4pjnOlejthJxD6PjyE/AbVZ5gB+tQ+N+XYW0b4c2udbGYLKeFXFBJ7uEVTrBYeXHWDRX6LY/MMMInTO7zVZLsunv+nslLmGeFPDZoaXTr4QkuNwAAAShRvYcXgZttpBxeuNgAn8XmB8EtknvYBdcncizLLXg3SehfO1+g5vSvz1jA+Gu3eK6a+AUOp82sXvFncD/FCvE2FKOn/Vs0UBAE2v+FE8vRS08CJVyZE2zggyYL/2EOUMEqWfU4k0h0wScf7bPxFf2tISNBsp9/e8VN4ZRzgBv+v/uYKPwgHrxCafEOu0HlUCPVYO4hmuT9mJZ4zo0zW3QEQmo7BlcJykO1JjylL9dBET9Ye6v/imkK4oLLggXuJJV16iFlewyIwAethgjgXS0++QuOm8PJ+s/1ZEfUs3AAHep/capLNLdvmlLNSmMUY4LIe6NU31H1d2vwvt/z3DIBbnjUw5LOHyL9uwVOZbDfchLLNp44HDQ7dUQnT971oaJT+dhUnkMddpCTUEeLpNBy5qJucR5LFBUYw7nCtDWRdBmj2L6zuU3B0ZF35NcQB7immSDGtI/FXQXXyOe056frTbKXj2h/fFLZQVVjJEc5csapVy37B+VWAQRZbX5+JC1fDUReRtkr9EmbIjwxnW9ai9khlq1c8a67Aei9ItCjMUirVU8M4ytuieqhqbyPQGYJELlqsC6HUPwAR/726DSg+EArcW0GFGnbhs1uIll094q6HXHgMKw7i00aRSZ/RxYXHfkbtgttTI/MQY+j1qshsFLOdg7Xn5kd5WkDvyzyFHuzn5ZL9f6WlGO3jEBhbwbME6A5QNcASlEtYLTW1gbJ5eZIJxT0SoPlr7lUd2RM//EHhUDzDSJIP3dugUvFcKalqQK5GExTTsrzDxS2EFTAt6n2CiSNtNzOBC7mU7O+ZCJjNfBhhBGXUsyqGFZ/Mt8/64Q0cxNs3X0XWQLnluWgTsZL0ntVsZF5Nvodt7v4hC4+synlsPoPbQHCXfZdppJF/yMgNKXOOR6hF0If+YeD8bLlYXmL1TDqkURT15STLt2T9QC6MRi8L2deT5KvRFMwm2EA2DIIF7qwqcGy3mmvuG0U5h40iDrW0BhERuEjMGd8HMfmPy7/bS+Y5A0Kzc/VPVcMAFUFeKYPyiSJBNOR3IiRGkuJR2pmJLioyatd52wo6qjI0H3M6243IWyyi3k6QNWs70+C0bNxdszxgW9ZmhgQ+llzZiSZEc/7NbnyT6Ha0figg7LhoQk8aQ2A3NjESZ9bx1Hhym+0Qen0HzLpju5Gpg1DhBsJ2iR2X8dNgyR5lRRJc/w3mKc/1UT3SGtEyDfaebMWa3StoUzrL+ASjGQBoM+gq4dQdMo160Fdxoy+VD02eva3PJNeseshQlVw5W4kFa7YCgN4oihz9ZfYkN8hK84+v+f4nLy2JtSkoS0SaOo4q3jDXLZSrM4gti2X/2nYtF/OE3d4UEHuDOYbT3RkcZKR/vIBDqsE1qkxsm7Tz59PJxppt8rg3Z0YY0bRmIzJPvnMg2EKaP61F659TTAt9JWDeGG8Af86D7aDk9BoqAjv14QK/mnBxjLKa1CCnTNKPvF8Xr59B+AY3WtAHw9aMcJgfN1ttCk71mEuYN7gU8QUZbdRGhDVlKDRBCoiiry+xzBEC9Aet9F9M2JU8gmif/3gNykotd4fJgFsOLMGm9a6CTBDJVkJedSmP/i0HXsVykA3PCcIKRMhWlib+oUnZopNmW9yr2OhGD4SU4/FYVCbk7zBHURdFTHPnpV/oigZZmMsrQN5PsUE47xmH99CXVmDewAfr8iSofWTxWBBhaxpAgbCjEW778C5zRfJsLPxRRtZOaerqrhkOIs1ymaksNqS1cUj81ZCm2TrotJ7PuAuTh6KRFt/hgLcC0WMgWo2+EB92O4lJhLAMJxS+MbJoSx/TA27bta7ge3EF5HVphQWP2GWtZsbMTEleu9K/VT1DWtwiZ+QJiSy6+vSNoppXeO9gItbMbStkfhAnq/CfB7MeIJM5tTzx/oSkD8L5IN8zBON33pTzlR4WciSgHsaqmhFvVzuwcRXCE4unpMWvyGN+HxBtHx3r3ss9x+eJVsqVrxl6WlDLh2IY3/eBBKKPmbd3CsLAj4oAqFchrqEgQvPmqWGrJmIBCLmPDMEr+FtIA+vdVY0AOyjGHvAld/XvAgSytxL7e6unA7yYEc1agJwln8OMvM3Q2fppOsy1DOcYdIdPgmdkcXYQ4TiXZX0rR56eZcNu4KGrnEkHPzV7h3FXGPeWukfO68qwpH3UqCw/gSrw9zQizeWRmSQbahkUI/VIMZAZkudvCAWD6QMGt+0dxxotSoIqJrr4/W2KD8WLsZqjLohzhncmyZqq1qMcaWnfl4fqOkFknhxF3L+en/5nYs+LfZP1M0O3MQa2EgoyWr4t4GqNHEbjVvcPNdG2e6b9rzLWUGeRJWxMkrI2JZGEpFPGU4MKLUeZXcSakPO3OgAMVW/mc4lu7JUxL5ZdDuxOU+ErJfSpQ0fJVinuREwLMH8o5NqzPZeIHXPMLWjYK+gEdJnAKc//l2Ct8GnlutrGGk57K2qRh/vh2VvaLqySig2j4m5R0wtm2/VL3tbFbD7SCzsW41cmYCFeQJSgbaf0hJH0o76EQ1tGHK4S21VH/D9oJCaVodePRkK6gwqygwfZ1OSyVoBzvcaZp3ABI+s5+ZDnRlFb8fbBc1IT/ZZmQStg55kTf/PjEud1LmqLR+kS3EP27YH/G7eXnSeTPw0GJTlnCrU1NvXAxeIOP6CDMJ0D0QG73s0GcN7xBAJEjEz0I+7/trS25JmAAuPxgHqOGX3Eq+u09e6jqBnBbSBgrSPq3Fiuu1bobRUDPEbwfPi5Dm0E78rgEhC/ACwzb0IIy9cJLt4gR3tB4JyIlhNq4FWB46KIGLt2iiFBGh3GksDuans4AXRXBdMLLiOc+fmZ29MxKMc7bkgHxaj/BF8cQ2DOcuCqfgjx/UbHC9zCdy84+1rzRj9xqn3OsVWzeOwG801H3/g11J8d5rtTmIClSk9qp0GW0z4BgLIO36w1XtDnqJxk/+GbM6fv6YhIKot4u3HsFifjyldm5yqGXKWpwMJSz7SGXc77jN0h7oGsM1ntxhO7IhEEnmo67oHTbFBQhQls1y7b31H2mOspKcXQe6WNKDrANR3IrYZ7KgRDiVBp+AF0Zpt0SpBNPYsqK4A0Yk3pX+NMUN2R4yRMOKRI6CZhYJ/bEpjYiqvrqc3VxFxA6bSZuiX1c00xdmxfakKzphNhYTqlWVtBTsqxrQsHrFKL0sZ1SOoYk2t2bf7CMi3AVQg2dcds0CT6iQyAAAAABpyTJxzoBhBG7WuD4WjWqwsZlxM2CXwWixCC7RB58B6U2myykidnFPGrTQEPEEzP//WddGoIyqiRn1V8HIECgOBsPvbyuTKQJqiiT29a5hACp8BSxLRhFMmrfO+qjKQHm2K5Hb3Hhq7MIPUzt9eZ65KT9hT23HVKAQMDDcRkf6c0+A7GNsrv3BdAhWFDG8ZZzti5CCyo1ILPcQbO4XU85+5IWiVt1mdGhTt//G+P3rCBnZR/H+wovut83dBaMZQUEqAUOnzfyYFKHOyjJvVleASC5ROcbJ3J5OEoIXtb93IlyPKNNzKZa9lJMogSYGB99IkejKgB6//ROJYCgzptJU3t+45xv1t16aelA3IJA7dDF3WDQJJ/oMsghM6vbKUNG3WSLmDo3wlx30h7CMH6fHPNsHzrPVyEUj5BzSlHyzlJeohucH1TIf4yVx4nphQwvKubGbB8sQt6VXREsVBf5pN6E3n2g6TtzJGOHsoI/WCCzhOHNVXS+ekRQqBpoW/dTgjl+CR40RoHGUtMrgYV1wfikoG+Jb+1GE46SaMlxhfWmFhN5nNhN7awKN5LllLVfAqwq+fbyogvWZnHIY8Ud5xbxbBMLHoU/U92H6WxmIaZUUneJJNAKp/HvcuiVOXZN3n2v2lSAn+4QxFFGx7n5rUrwVgYqdnybocRlluHQh8lIsqlgaO+v+1dyCC4RK+L/4B9Rbebeje2I7fehSzxSh5pKCI6hy4H7Yk6eeVY7svjBEkuVQRIv00w2BoHiX1h5s8s9g/MxF65tthF2TgvzyGZCmKeLr2TOV64O7aHvETU4C5PCUo2EJJv7QPkGRClw7SLgoLDU2Um2jHsgK4lbZ9gz0E+cb/abMZDrjUgqdV2fVkVFDkRxIKkAGOIitJ277ypHndZ5jUKdipqGIkpz6OHT4QDXoPYHoPNhJgfSSjuV3cjl5JqBXRdo78rToPmMgii1npvNTAO3LPcliaGUIyl0x5SFJZ5nbBUldfamRHiJaXPOgiI6dV7HUaCcJU+0EKzcY2H41e+TQ1ruSXS2fN6+cJW0Dp9eIw+2J7QYucAAxr4APl1dXclCRxDIGDqf2e+rIQSg37e9OGM5eB3s/JojQ5e/2JQm2n1Fg1EJlyUOmIJoo+SeJPS3yWcDJJinyxcQAZqDxnZe1N1XuaAdVsoTYs8wgLuS+G/R9QNXayp6BfvauHasD2OXxJ8Phgm73quBa3kWzLqXmPY284gYgTHY4ocMGtRMMpbFCO35j7cVddZygGXR60mv2I7P9NgnmlZQ/e0lG4XDjD4baZIDR802Z8LzY/lmTpcXu751j6irscFBtrOfnhzPx0+0xe3uAD8hToY2BlwAroOBxrFLKh8Zc0c64TvF1nkKnCWe56j9wTaCCdVeOOqxGGwgeqUoUMkF+FpszDPpi7M7XLkYOqfNEUEl/wZm4MKpOAbor9opMSwkWQxk5AtuHddbRWPwizjTGE1BwHswaViOW2TlwWGpoaA/9gWn48MLqHwiE/kp2d99OmG3czpI5ZnX+k3RPZ7KGnaRH6jiquDkbt/Qx44dWo83aJZAQBJB9Qh4hLYz7Qo6f7/9SJ2pfLaZ4YqcmKhpdAu2dXQg58kV34FwXAgafuaH9drovssN/naZ+NpfhAM1ANz0vntZacK6A/dgSvdGF6kjPODH7eqOawHWhkVkYIcljhwbu8bbIm2UV4NHebl23hdAln9X5MZ96xw9Dqp8bkdu8VdyZP9LjHYSmF9BZPI30kAxZYBm8kFH0MeNaJ6s7Eflx/uyU7hEkCXJXOLMBg0VxNmpz0q8uSAAK423KVgvNTdmhm4hp99N3iGaDtzRe04xm5k25bmotxfVrLbFLUrr9jOp6/ZcPgzPy3aGzurA594Hu/A6EtUs1zRQqng7syNkcWm/fl+kAiysXa5GzeKs1zVRxJVH7t1eWSPn2w0Q8Zpnc6RRbu5Sy8CdT+dP1xEB/dFj5dWS0xpEY41CijePzKsLhYMFcd0EwhUcHz/iwpRafZgkMoAhDGPrKFM5A9a66DfZYzUnEPebcuBr1Wggt5mlECMn18fHUl3WYNePf32f58NR57NB8GeCnSLqQdx+564tAR6sBJHeozz5MmHxpmHr2xMyy5xVK4n+CI8k08nlyGqyFyPNszmKZEJqEAAAaA13qy0uXTX36Ss2t/xx2fUBZBEMW7x74qJ9k3uGo7RNS4krmIb4KF58tJPA5yh4Pz3jEc72nX8vpWOhW7PA9w+eMjsoFS5OG1M/uV25CPP2/FaeiZgCcP/F1eApG4Yx9LiXvbLbiLdF916MFcXQyY8E6ooKpYZgsY4Kkr+zwmxnxLESbxrHj97lXJ65kysmSzl5SP6TWbO9Q8RnGM3mMq+UEh+gV+MW5Z2rD2x+oBKhEaEvgeDBCeAH72w7COJPeyDgFJQveKdOp5keBYtQF3osHhl5POfbJqJ7sPdiFXvjUw7eYxCiug4QmG8XJBA6qmQkLJ7rr72+uVpeaVVC0ZE+KYVdvstxVByuXDoz/QB7iaasxb3f+jycFbSxXmcPWCIrCm1heH9D7c+XZ72TCY0jUYt/3d4xsoGMio3fs6X5gxmU/7yJW3pD1syj+xOnjt+GXmoZ6vQfdaZ/AdZFXT1cbm6J2mhAbCp4FeVnjOExW82nSOjY8kUI82HMK+k8j10lYXfuaSDzfuyYOq/hYpRKzV5b9+cvHRZwJWb/LohiRxj0qeEcpyQ/PMebpCUNALvZeOv8TUtmz1mCi4gwZoMZ7vwH53iqPYlVNHj93F3QWK+wYSBVjsEJMKaooQ0eLBgfOyTC4+18x8cxST9mec5WjbV9Gi0Mf/3sSoxWeuSv5pA4Dcm2tsdF70S/JSKmBkJZw5Va80Ye04uE3cTk5nmbGDiUcvC/s7w6JyuPM77r1bYqj+UfSNvF/UBTbDCcypYchQOiP+XVq69OenEI/pAoHDxgvWx3o9DMvNUAzL2QGjq4fC85d3E21FcHYh87t79FgDbivUblbnOnrCVjGu97ORP7UwKbCeQkFj5TLHy6TZbpcRwdEQ0/4K8aliRfa/6D7ocCdVH2vsERgF+Hl/LD//KyUMUyC0OXIBvAi2MSsYWPjncKC5upkwIdBHmwvTqKlBxSKVxU3iCByU+7xoW4xmfwzYJgannV2mQKnx6k0k9YKecSZANT4NGi67wEl0JAUdkZD0PJRKX+0F3526tjELf+dDJJPVU3zSq/XA/qj3/jgUG7LmzERNeXy8JvVKZpVI7AdhWTrTCS0dEvfEZudhFDoXIuO8Ohltau+2spfRPGhASzr8sXd4+1ZlFKSCOw0h1h83knkM716/I4cRdQ26sW7i9Tf45a5nBXwp+1BlA9PDidza8SNI5Xb+UguPWBEB7rFl0wbPe5mcHOX0rzlr6HTW2VX/01904VGxdBwcn5+viyTYRUZq0+pPaTFYI+hYRWK2yEja3+70S7EhGCSGxhlXPkWKjHqZq3LNFaAM8xVSYC7AGTWkAAMv//YGzf05e2BtwJLZr6/joFiWWTqS+Lr/S7c7MFAzm0R0EmtQuQS5ShPdKgRWvZG8QCCi9gfy8fz0tTiwEPJG69thorMbVEtVXA5+bxbEFvFlk///qdWyF2l6CWB7C4LpfsjopQCub0AZ8Zf4UCz7t1QD3tqDJJR7TpRsJ438l9YjtDsoeKAMT++LJMTojKe8INhR5vd1F4VeBf9YhMsUHiO1KJv203t6SJ/HFfJLLf2Dd6GgfPD5JOL5Lope28OCbshA/BBjsPA5tGptwwoPwRQwOvarBIk5OfnvgK9Xdyj4TpqYGZWNLZKkkGPmmoWNfPN2UTjRlFTHtsoBryDdyZqCXsTKLOVkr8NvNHuFUAOLIJrye15FFPC/PoLLkUs/iGHN5x6k2rIWGaUrrnDRGkt5wEAEl5j1VGoL/+nJecFm6hW1ux2jir84wI4JNMOcn+hTPLMVyIAEatFfruooffFs2YhtsGG7YfW/r9Gc/3MiaYVhe4AZ7vD0odVepHGsLXCDxd8a6BXCeHn8CM6lBiyPziahdJOeLMuYlu5Refon9DY72OpkUunBDk1yCFww6Dk1vYGjVprmL/Bg8+YZAmUz4Q1u46QCdx2feV7T0KlmzpCzSZh9L37/QVldknl3kVpdnRW/DI2rvuqFgQDD4NOBT4N6nFiAQsLqjN2BEDvAhM0pFLeofPclbA0NZOkiMlMS8j2f4drqhcbmjuMpNdJqUtTKaMlkl8MtixKvEJ2eRbtjyzTL+Gw9PAvbx4BZf4EBHhn+C25zXaA/gqQM8XBx3CfBZSvfsjtcog93d+Po6+qfN+EaoDxcU70VykvyClfcZ6SB0EKh0eBmXR5gH8LlIaoyb10HfYgD5D9yOQZefQEoNuJxfOPQc9xr/F1LFWcd3lrUTiH/qeoEw1QL5NK5uzR9U08J2Bms0JBaQr/+465IOHJNheEYwJEZK+2N3atlNEDuQI4G3yANdo/4YntyTXowsSe9yGCX/3R6H6KGocff8MfRFF7P5Sjjrx07yEzXKRgixLgpDC1vo8hqSVRRLpqE8Dbx3cs9J4/vEIjTVxv4FfxAlG3ftpq4kaDjyHLWUEy28WDjeySkn6NcqhZwk/4RfCyWlOH3AuVqlC5etsxLc9JNrNpXZZgpOTrqj+ARdtiT+T1jdXbL2pWRQb5V+pJscxUF6IMgAuWzydANl4DHepJH5jff1ZOQFs9+W3yvUM+SuvO9ht03WMViibUBmSX1Zl+Vqzb2micwdp9q0bQY8p+vtAQMDfLJi1zXq2AAgjvkVmD6ZbJNf6JnGC9Fq5fwCQALk6tHlJkEuOg6R3GSYRo7yvMGfFBBWpot+16w3ZnlDgEBxIXD7r3yBFGmlDLPFrvMkHXwAA1dHYAqZsajIjwkR/R3fBx4VlspcXXgqtmR0HzlehrfBJaQYMx9Brg0il2mO1uxS5yrREf/QyG8h3PKPwbRRsioLzpqbkxF/ybBq2wAq6hgAAAJexMd7HyHFi8QAqx1ciClW6d7cx/Ji7RJENWfzi0fmsmf3fuVRioJkWfDFxXRauVXDUZyvsT/BAURaeQf8Wj0nrQVgABTF8kukNPR2ndPLfoS3udJL3FY2zEuxud3O1KU2ji1UzfO1OkPh+tQLgAAbUGHE/MLiHcfQ98z6t4DRzpaYAAAAAAA";
+
 /* ---------------- constantes ---------------- */
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -9,14 +11,14 @@ const MESES_LONGOS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho"
 
 const CATEGORIAS = ["Casa", "Alimentação", "Transporte", "Estudos", "Lazer", "Compras", "Saúde", "Outros"];
 const COR_CATEGORIA = {
-  Casa: "bg-sky-400",
-  "Alimentação": "bg-amber-400",
-  Transporte: "bg-orange-400",
-  Estudos: "bg-violet-400",
-  Lazer: "bg-pink-400",
-  Compras: "bg-emerald-400",
-  "Saúde": "bg-red-400",
-  Outros: "bg-neutral-400",
+  Casa: "bg-neutral-900",
+  "Alimentação": "bg-neutral-700",
+  Transporte: "bg-neutral-500",
+  Estudos: "bg-neutral-800",
+  Lazer: "bg-neutral-400",
+  Compras: "bg-neutral-600",
+  "Saúde": "bg-red-500",
+  Outros: "bg-neutral-300",
 };
 const CAT_ENTRADA = ["Salário", "Renda extra", "Freelance", "Investimentos", "Outros"];
 
@@ -113,15 +115,15 @@ function useSalvo(chave, inicial) {
 
 /* ---------------- UI base ---------------- */
 
-const input = "w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-100 outline-none focus:border-amber-400";
-const btn = "bg-amber-400 text-neutral-950 font-medium text-sm px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors disabled:opacity-40";
-const btnSec = "text-neutral-400 hover:text-neutral-100 text-sm px-4 py-2 rounded-lg border border-neutral-800 transition-colors";
-const chip = (ativo) => `text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${ativo ? "bg-amber-400 text-neutral-950 border-amber-400" : "border-neutral-800 text-neutral-400 hover:text-neutral-200"}`;
+const input = "w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+const btn = "bg-neutral-900 text-white font-medium text-sm px-4 py-2 rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-40";
+const btnSec = "text-neutral-600 hover:text-neutral-900 text-sm px-4 py-2 rounded-lg border border-neutral-200 transition-colors";
+const chip = (ativo) => `text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${ativo ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 text-neutral-600 hover:text-neutral-800"}`;
 
 function Campo({ label, children }) {
   return (
     <div className="mb-3">
-      <label className="block text-xs text-neutral-400 mb-1.5">{label}</label>
+      <label className="block text-xs text-neutral-600 mb-1.5">{label}</label>
       {children}
     </div>
   );
@@ -136,10 +138,10 @@ function Modal({ titulo, onFechar, children }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 pt-16 overflow-y-auto"
       onMouseDown={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
-          <h3 className="text-sm font-medium text-neutral-100">{titulo}</h3>
-          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg">{"×"}</button>
+      <div className="bg-white border border-neutral-200 rounded-xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200">
+          <h3 className="text-sm font-medium text-neutral-900">{titulo}</h3>
+          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-800 text-lg">{"×"}</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -160,7 +162,7 @@ function CampoQuando({ f, set, rotuloRecorrente = "Recorrente (todo mês)" }) {
   return (
     <>
       <Campo label={"Repetição"}>
-        <label className="flex items-center gap-2 text-sm text-neutral-300">
+        <label className="flex items-center gap-2 text-sm text-neutral-700">
           <input type="checkbox" checked={f.recorrente} onChange={(e) => set("recorrente", e.target.checked)} />
           {rotuloRecorrente}
         </label>
@@ -217,50 +219,51 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-100">Resumo</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Resumo</h2>
         <p className="text-sm text-neutral-500">{rotuloLongo(mesAtual)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">ENTRADAS</div>
-          <div className="text-lg font-semibold text-emerald-400">{brl(totalEntradas)}</div>
+          <div className="text-lg font-semibold text-neutral-900">{brl(totalEntradas)}</div>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">GASTOS FIXOS</div>
-          <div className="text-lg font-semibold text-neutral-100">{brl(totalFixos)}</div>
+          <div className="text-lg font-semibold text-neutral-900">{brl(totalFixos)}</div>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">GASTOS VARIÁVEIS</div>
-          <div className="text-lg font-semibold text-neutral-100">{brl(totalVariaveis)}</div>
+          <div className="text-lg font-semibold text-neutral-900">{brl(totalVariaveis)}</div>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">FATURA DO CARTÃO</div>
-          <div className="text-lg font-semibold text-amber-400">{brl(faturaAtual)}</div>
+          <div className="text-lg font-semibold text-neutral-900">{brl(faturaAtual)}</div>
         </div>
       </div>
 
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
-        <span className="text-sm text-neutral-300">Sobra do mês</span>
-        <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-400" : "text-emerald-400"}`}>{brl(sobra)}</span>
+      <img src={SKELETON_KKK} alt="" aria-hidden="true" className="w-14 h-14 object-contain mx-auto -mb-3" />
+      <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between">
+        <span className="text-sm text-neutral-700">Sobra do mês</span>
+        <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-500" : "text-neutral-900"}`}>{brl(sobra)}</span>
       </div>
 
       <button onClick={() => irPara("monitoramento")}
-        className="w-full text-left bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors">
-        <div className="text-sm text-neutral-300 mb-1">{"Ver onde está indo o dinheiro →"}</div>
+        className="w-full text-left bg-white border border-neutral-200 rounded-xl p-4 hover:border-neutral-300 transition-colors">
+        <div className="text-sm text-neutral-700 mb-1">{"Ver onde está indo o dinheiro →"}</div>
         <div className="text-xs text-neutral-500">Gasto por categoria neste mês</div>
       </button>
 
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-        <div className="text-sm text-neutral-300 mb-4">Fatura nos próximos meses</div>
+      <div className="bg-white border border-neutral-200 rounded-xl p-4">
+        <div className="text-sm text-neutral-700 mb-4">Fatura nos próximos meses</div>
         <div className="flex items-end gap-2 h-28">
           {proximos.map((p) => (
             <div key={rotulo(p.mes)} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
-              <div className="text-xs text-neutral-400 whitespace-nowrap">
+              <div className="text-xs text-neutral-600 whitespace-nowrap">
                 {p.total > 0 ? brl(p.total).replace("R$", "").trim() : "—"}
               </div>
               <div className="w-full flex items-end" style={{ height: "60%" }}>
-                <div className="w-full bg-amber-400 rounded-t" style={{ height: `${(p.total / maior) * 100}%`, minHeight: p.total > 0 ? 3 : 0 }} />
+                <div className="w-full bg-neutral-900 rounded-t" style={{ height: `${(p.total / maior) * 100}%`, minHeight: p.total > 0 ? 3 : 0 }} />
               </div>
               <div className="text-xs text-neutral-500">{rotulo(p.mes)}</div>
             </div>
@@ -270,12 +273,12 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
 
       {cartoes.length > 0 && (
         <div>
-          <div className="text-sm text-neutral-300 mb-2">Fatura por cartão</div>
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+          <div className="text-sm text-neutral-700 mb-2">Fatura por cartão</div>
+          <div className="bg-white border border-neutral-200 rounded-xl divide-y divide-neutral-200">
             {cartoes.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-neutral-300">{c.nome}</span>
-                <span className="text-sm font-medium text-amber-400">{brl(faturaDoMes(compras, mesAtual, c.id))}</span>
+                <span className="text-sm text-neutral-700">{c.nome}</span>
+                <span className="text-sm font-medium text-neutral-900">{brl(faturaDoMes(compras, mesAtual, c.id))}</span>
               </div>
             ))}
           </div>
@@ -283,9 +286,9 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
       )}
 
       {totalConcluidos > 0 && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
+        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm text-neutral-300">{totalConcluidos} lançamento(s) já encerrado(s)</div>
+            <div className="text-sm text-neutral-700">{totalConcluidos} lançamento(s) já encerrado(s)</div>
             <div className="text-xs text-neutral-500">Parcelas quitadas e gastos de meses passados</div>
           </div>
           <button className={btnSec} onClick={limparConcluidos}>Fatura paga · limpar</button>
@@ -308,36 +311,36 @@ function Monitoramento({ gastos, compras }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-100">Monitoramento</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Monitoramento</h2>
         <p className="text-sm text-neutral-500">Onde seu dinheiro está indo · {rotuloLongo(mesAtual)}</p>
       </div>
 
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
-        <span className="text-sm text-neutral-300">Total gasto no mês</span>
-        <span className="text-xl font-semibold text-neutral-100">{brl(total)}</span>
+      <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between">
+        <span className="text-sm text-neutral-700">Total gasto no mês</span>
+        <span className="text-xl font-semibold text-neutral-900">{brl(total)}</span>
       </div>
 
       {!linhas.length ? (
         <Vazio texto="Nenhum gasto registrado ainda este mês." />
       ) : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
+        <div className="bg-white border border-neutral-200 rounded-xl p-4 space-y-4">
           {linhas.map((l) => (
             <div key={l.categoria}>
               <div className="flex items-center justify-between mb-1.5 text-sm">
-                <span className="flex items-center gap-2 text-neutral-200">
+                <span className="flex items-center gap-2 text-neutral-800">
                   <Ponto cor={COR_CATEGORIA[l.categoria]} />
                   {l.categoria}
                 </span>
-                <span className="text-neutral-400">{brl(l.valor)} · {((l.valor / total) * 100).toFixed(0)}%</span>
+                <span className="text-neutral-600">{brl(l.valor)} · {((l.valor / total) * 100).toFixed(0)}%</span>
               </div>
-              <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${COR_CATEGORIA[l.categoria]}`} style={{ width: `${(l.valor / maior) * 100}%` }} />
               </div>
             </div>
           ))}
         </div>
       )}
-      <p className="text-xs text-neutral-600">{"Inclui gastos fixos, variáveis e parcelas de cartão que caem neste mês. Só muda quando você lança algo — nada para ajustar aqui."}</p>
+      <p className="text-xs text-neutral-400">{"Inclui gastos fixos, variáveis e parcelas de cartão que caem neste mês. Só muda quando você lança algo — nada para ajustar aqui."}</p>
     </div>
   );
 }
@@ -360,7 +363,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">{"Cartões"}</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">{"Cartões"}</h2>
           <p className="text-sm text-neutral-500">Compras parceladas e fatura mensal</p>
         </div>
         <div className="flex gap-2">
@@ -382,54 +385,54 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
         const expandido = aberto === cartao.id;
 
         return (
-          <div key={cartao.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+          <div key={cartao.id} className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
             <div className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="text-sm font-medium text-neutral-100">{cartao.nome}</div>
+                  <div className="text-sm font-medium text-neutral-900">{cartao.nome}</div>
                   <div className="text-xs text-neutral-500">{doCartao.length} compra(s)</div>
                 </div>
                 <div className="flex gap-2 text-neutral-500">
-                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-200">{"✏️"}</button>
-                  <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-400">{"×"}</button>
+                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-800">{"✏️"}</button>
+                  <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-500">{"×"}</button>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <div className="text-xs text-neutral-500">Fatura deste mês</div>
-                  <div className="text-base font-semibold text-amber-400">{brl(faturaMes)}</div>
+                  <div className="text-base font-semibold text-neutral-900">{brl(faturaMes)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Ainda a pagar</div>
-                  <div className="text-base font-semibold text-neutral-200">{brl(aindaDevo)}</div>
+                  <div className="text-base font-semibold text-neutral-800">{brl(aindaDevo)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Limite</div>
                   {cartao.limite > 0 ? (
-                    <div className="text-base font-semibold text-neutral-200">{brl(cartao.limite)}</div>
+                    <div className="text-base font-semibold text-neutral-800">{brl(cartao.limite)}</div>
                   ) : (
-                    <button className="text-xs text-neutral-500 underline hover:text-neutral-300" onClick={() => setModalCartao(cartao)}>
+                    <button className="text-xs text-neutral-500 underline hover:text-neutral-700" onClick={() => setModalCartao(cartao)}>
                       Definir limite
                     </button>
                   )}
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Disponível</div>
-                  <div className={`text-base font-semibold ${cartao.limite > 0 && cartao.limite - aindaDevo < 0 ? "text-red-400" : "text-neutral-200"}`}>
+                  <div className={`text-base font-semibold ${cartao.limite > 0 && cartao.limite - aindaDevo < 0 ? "text-red-500" : "text-neutral-800"}`}>
                     {cartao.limite > 0 ? brl(cartao.limite - aindaDevo) : "—"}
                   </div>
                 </div>
               </div>
 
-              <button className="text-xs text-neutral-400 hover:text-neutral-200"
+              <button className="text-xs text-neutral-600 hover:text-neutral-800"
                 onClick={() => setAberto(expandido ? null : cartao.id)}>
                 {expandido ? "Ocultar compras" : "Ver compras"}
               </button>
             </div>
 
             {expandido && (
-              <div className="border-t border-neutral-800 divide-y divide-neutral-800">
+              <div className="border-t border-neutral-200 divide-y divide-neutral-200">
                 {!doCartao.length && <div className="px-4 py-3 text-sm text-neutral-500">Nenhuma compra.</div>}
                 {doCartao.map((c) => {
                   const { fim, valorParcela } = periodoCompra(c);
@@ -440,23 +443,23 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                     <div key={c.id} className="px-4 py-3">
                       <div className="flex items-start justify-between gap-3 mb-1.5">
                         <div className="min-w-0">
-                          <div className="text-sm text-neutral-100 truncate">{c.descricao}</div>
+                          <div className="text-sm text-neutral-900 truncate">{c.descricao}</div>
                           <div className="text-xs text-neutral-500 flex items-center gap-1.5">
                             <Ponto cor={COR_CATEGORIA[c.categoria]} />{c.categoria}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <div className="text-sm text-neutral-100">{c.parcelas}x {brl(valorParcela)}</div>
+                          <div className="text-sm text-neutral-900">{c.parcelas}x {brl(valorParcela)}</div>
                           <div className="text-xs text-neutral-500">total {brl(c.valorTotal)}</div>
                         </div>
                         <div className="flex gap-1.5 shrink-0 text-neutral-500">
-                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-200">{"✏️"}</button>
-                          <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-400">{"×"}</button>
+                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-800">{"✏️"}</button>
+                          <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-500">{"×"}</button>
                         </div>
                       </div>
 
-                      <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-1.5">
-                        <div className={`h-full rounded-full ${quitada ? "bg-emerald-400" : "bg-amber-400"}`}
+                      <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden mb-1.5">
+                        <div className={`h-full rounded-full ${quitada ? "bg-neutral-900" : "bg-neutral-400"}`}
                           style={{ width: `${Math.min(100, (pagas / c.parcelas) * 100)}%` }} />
                       </div>
 
@@ -577,9 +580,9 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
         </Campo>
       </div>
       {total > 0 && (
-        <div className="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-400 space-y-1">
-          <div>{n}x de <span className="text-amber-400 font-medium">{brl(total / n)}</span></div>
-          <div>De {rotulo({ ano: f.ano, mes: f.mes })} até <span className="text-neutral-200">{rotulo(fim)}</span></div>
+        <div className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 text-xs text-neutral-600 space-y-1">
+          <div>{n}x de <span className="text-neutral-900 font-medium">{brl(total / n)}</span></div>
+          <div>De {rotulo({ ano: f.ano, mes: f.mes })} até <span className="text-neutral-800">{rotulo(fim)}</span></div>
         </div>
       )}
       <div className="flex justify-end gap-2 mt-4">
@@ -604,7 +607,7 @@ function Gastos({ gastos, setGastos }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">Gastos</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">Gastos</h2>
           <p className="text-sm text-neutral-500">Fora do cartão · {brl(totalMes)} este mês</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Gasto</button>
@@ -617,20 +620,20 @@ function Gastos({ gastos, setGastos }) {
       </div>
 
       {!lista.length ? <Vazio texto="Nada aqui ainda." /> : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+        <div className="bg-white border border-neutral-200 rounded-xl divide-y divide-neutral-200">
           {lista.map((g) => (
             <div key={g.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-neutral-100 truncate">{g.descricao}</div>
+                <div className="text-sm text-neutral-900 truncate">{g.descricao}</div>
                 <div className="text-xs text-neutral-500 flex items-center gap-1.5 mt-0.5">
                   <Ponto cor={COR_CATEGORIA[g.categoria]} />
                   {g.categoria} · {g.tipo}
                   {g.recorrente ? ` · todo dia ${g.dia}` : ` · ${rotulo({ ano: g.ano, mes: g.mes })}`}
                 </div>
               </div>
-              <div className="text-sm text-neutral-100">{brl(g.valor)}</div>
-              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-200">{"✏️"}</button>
-              <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-600 hover:text-red-400">{"×"}</button>
+              <div className="text-sm text-neutral-900">{brl(g.valor)}</div>
+              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-800">{"✏️"}</button>
+              <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-400 hover:text-red-500">{"×"}</button>
             </div>
           ))}
         </div>
@@ -708,25 +711,25 @@ function Entradas({ entradas, setEntradas }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">Entradas</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">Entradas</h2>
           <p className="text-sm text-neutral-500">{brl(totalMes)} este mês</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Entrada</button>
       </div>
 
       {!entradas.length ? <Vazio texto="Nenhuma entrada cadastrada." /> : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+        <div className="bg-white border border-neutral-200 rounded-xl divide-y divide-neutral-200">
           {entradas.map((e) => (
             <div key={e.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-neutral-100 truncate">{e.descricao}</div>
+                <div className="text-sm text-neutral-900 truncate">{e.descricao}</div>
                 <div className="text-xs text-neutral-500 mt-0.5">
                   {e.categoria}{e.recorrente ? ` · todo dia ${e.dia}` : ` · ${rotulo({ ano: e.ano, mes: e.mes })}`}
                 </div>
               </div>
-              <div className="text-sm font-medium text-emerald-400">{brl(e.valor)}</div>
-              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-200">{"✏️"}</button>
-              <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-600 hover:text-red-400">{"×"}</button>
+              <div className="text-sm font-medium text-neutral-900">{brl(e.valor)}</div>
+              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-800">{"✏️"}</button>
+              <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-400 hover:text-red-500">{"×"}</button>
             </div>
           ))}
         </div>
@@ -992,11 +995,11 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
         Envie o print ou cole o texto. Depois confira valor, data, parcelas e a forma de pagamento.
       </p>
 
-      <div className="mb-3 border border-dashed border-neutral-700 rounded-lg p-3 text-center">
+      <div className="mb-3 border border-dashed border-neutral-300 rounded-lg p-3 text-center">
         {preview ? (
           <div className="relative">
             <img src={preview} alt="preview" className="max-h-28 mx-auto rounded object-contain" />
-            <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-neutral-900/80 rounded px-1.5" onClick={() => setPreview(null)}>x</button>
+            <button type="button" className="absolute top-0 right-0 text-neutral-600 hover:text-red-500 text-sm bg-neutral-100/80 rounded px-1.5" onClick={() => setPreview(null)}>x</button>
           </div>
         ) : (
           <div className="space-y-2 py-1">
@@ -1014,7 +1017,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
           </div>
         )}
         {ocrProgresso != null && (
-          <p className="text-xs text-amber-400 mt-2">Lendo imagem... {ocrProgresso}%</p>
+          <p className="text-xs text-neutral-900 mt-2">Lendo imagem... {ocrProgresso}%</p>
         )}
       </div>
 
@@ -1034,8 +1037,8 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       )}
 
       {rascunho && (
-        <div className="space-y-3 border border-neutral-800 rounded-xl p-3 mb-3">
-          <div className="text-xs text-amber-400 font-medium">Confirme antes de salvar</div>
+        <div className="space-y-3 border border-neutral-200 rounded-xl p-3 mb-3">
+          <div className="text-xs text-neutral-900 font-medium">Confirme antes de salvar</div>
 
           <Campo label="Descricao">
             <input className={input} value={rascunho.descricao} onChange={(e) => setR("descricao", e.target.value)} />
@@ -1065,7 +1068,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
             <>
               <Campo label="Cartao">
                 {!cartoes.length ? (
-                  <p className="text-xs text-red-400">Cadastre um cartao na aba Cartoes.</p>
+                  <p className="text-xs text-red-500">Cadastre um cartao na aba Cartoes.</p>
                 ) : (
                   <select className={input} value={rascunho.cartaoId} onChange={(e) => setR("cartaoId", e.target.value)}>
                     <option value="">Selecione...</option>
@@ -1116,7 +1119,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
         </div>
       )}
 
-      {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
+      {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
     </Modal>
   );
 }
@@ -1174,18 +1177,18 @@ export default function App() {
   if (!(p1 && p2 && p3 && p4)) return null;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100"
+    <div className="min-h-screen bg-neutral-50 text-neutral-900"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <div className="max-w-2xl mx-auto px-4 py-5">
         <div className="mb-5">
           <div className="text-base font-semibold">Meu Caixa</div>
         </div>
 
-        <div className="flex gap-1 mb-6 border-b border-neutral-900 overflow-x-auto">
+        <div className="flex gap-1 mb-6 border-b border-neutral-100 overflow-x-auto">
           {ABAS.map((a) => (
             <button key={a.chave} onClick={() => setAba(a.chave)}
               className={`px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                aba === a.chave ? "border-amber-400 text-amber-400" : "border-transparent text-neutral-500 hover:text-neutral-300"
+                aba === a.chave ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-700"
               }`}>
               {a.nome}
             </button>
@@ -1203,7 +1206,7 @@ export default function App() {
       </div>
 
       <button onClick={() => setRapido(true)} title={"Lançamento rápido"}
-        className="fixed bottom-6 right-5 md:right-8 w-14 h-14 rounded-full bg-amber-400 text-neutral-950 text-2xl font-light shadow-lg hover:bg-amber-300 transition-colors flex items-center justify-center z-40">
+        className="fixed bottom-6 right-5 md:right-8 w-14 h-14 rounded-full bg-neutral-900 text-white text-2xl font-light shadow-lg hover:bg-neutral-800 transition-colors flex items-center justify-center z-40">
         +
       </button>
 
@@ -1220,7 +1223,7 @@ export default function App() {
       )}
 
       {aviso && (
-        <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
+        <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-200 border border-neutral-300 text-neutral-900 text-sm px-4 py-2.5 rounded-lg shadow-lg">
           {aviso}
         </div>
       )}
