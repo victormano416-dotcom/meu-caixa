@@ -826,7 +826,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       processarImagem(arquivoInicial);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [arquivoInicial]);
 
   const onFile = (e) => {
     const file = e.target.files?.[0];
@@ -1045,6 +1045,7 @@ export default function App() {
 
       {rapido && (
         <ModalRapido
+          key={arquivoShare ? `share-${arquivoShare.size}-${arquivoShare.name || "img"}` : "manual"}
           entradas={entradas} setEntradas={setEntradas}
           gastos={gastos} setGastos={setGastos}
           cartoes={cartoes} compras={compras} setCompras={setCompras}
