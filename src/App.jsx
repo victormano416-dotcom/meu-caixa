@@ -863,10 +863,29 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
             recorrente: !!p.recorrente, dia: p.dia || 5, ano: anoE, mes: mesE });
         } else if (p.tipo === "compraCartao") {
           if (!cartoes.length) { semCartao++; return; }
-          const cartao = cartoes.find((c) => p.banco && c.nome.toLowerCase().includes(String(p.banco).toLowerCase()))
-            || cartoes.find((c) => /bb|brasil|facil|visa/i.test(c.nome) && /bb|brasil/i.test(String(p.banco||"")))
-            || cartoes[0];
-          const parcelas = Math.max(1, parseInt(p.parcelas) || 1);
+          const bancoStr = String(p.banco || "").toLowerCase().trim();
+          const scoreCartao = (card) => {
+            const n = String(card.nome || "").toLowerCase();
+            let s = 0;
+            if (bancoStr && n.includes(bancoStr)) s += 5;
+            if ((bancoStr === "bb" || bancoStr === "brasil") && /bb|brasil|facil|banco do brasil/.test(n)) s += 5;
+            if ((bancoStr === "nu" || bancoStr === "nubank") && /(^|\b)nu\b|nubank/.test(n)) s += 5;
+            if (bancoStr === "inter" && /inter/.test(n)) s += 5;
+            if (bancoStr === "itau" && /ita[uÃº]/.test(n)) s += 5;
+            if (bancoStr && bancoStr !== "nu" && bancoStr !== "nubank" && /(^|\b)nu\b|nubank/.test(n)) s -= 3;
+            return s;
+          };
+          let cartao = null;
+          let best = 0;
+          for (const card of cartoes) {
+            const sc = scoreCartao(card);
+            if (sc > best) { best = sc; cartao = card; }
+          }
+          if (!cartao || best <= 0) {
+            cartao = cartoes.length === 1 ? cartoes[0] : null;
+          }
+          if (!cartao) { semCartao++; return; }
+          const parcelas = Math.max(1, parseInt(p.parcelas, 10) || 1);
           const valorParcela = Number(p.valor);
           const valorTotal = p.valorTotal != null ? Number(p.valorTotal) : (parcelas > 1 ? valorParcela * parcelas : valorParcela);
           const anoC = p.ano != null ? p.ano : agora.ano;
@@ -879,29 +898,9 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
           novosGastos.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaGasto,
             tipo: p.tipoGasto === "Fixo" ? "Fixo" : "Vari\u00e1vel", recorrente: !!p.recorrente, dia: p.dia || 10,
             ano: anoG, mes: mesG });
-        } else if (p.tipo === "compraCartao") {
-          if (!cartoes.length) { semCartao++; return; }
-          const cartao = cartoes.find((c) => p.banco && c.nome.toLowerCase().includes(String(p.banco).toLowerCase())) || cartoes[0];
-          const parcelas = Math.max(1, parseInt(p.parcelas) || 1);
-          novasCompras.push({ id: uid(), cartaoId: cartao.id, descricao: p.descricao, categoria: categoriaGasto,
-            valorTotal: Number(p.valor), parcelas, ano: agora.ano, mes: agora.mes });
-        } else {
-          novosGastos.push({ id: uid(), descricao: p.descricao, valor: Number(p.valor), categoria: categoriaGasto,
-            tipo: p.tipoGasto === "Fixo" ? "Fixo" : "Vari\u00e1vel", recorrente: !!p.recorrente, dia: p.dia || 10,
-            ano: agora.ano, mes: agora.mes });
         }
       });
 
-      if (novasEntradas.length) setEntradas([...novasEntradas, ...entradas]);
-      if (novosGastos.length) setGastos([...novosGastos, ...gastos]);
-      if (novasCompras.length) setCompras([...novasCompras, ...compras]);
-
-      const total = novasEntradas.length + novosGastos.length + novasCompras.length;
-      if (total === 0 && semCartao > 0) {
-        setErro("Cadastre um cart\u00e3o antes de lan\u00e7ar compras no cart\u00e3o.");
-        setCarregando(false);
-        return;
-      }
       const partes = [];
       if (novasEntradas.length) partes.push(`${novasEntradas.length} entrada(s)`);
       if (novosGastos.length) partes.push(`${novosGastos.length} gasto(s)`);
