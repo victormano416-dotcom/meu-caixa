@@ -116,6 +116,14 @@ export function parseLocal(texto) {
   return out;
 }
 
+/** Sem fetch externo — evita Failed to fetch no navegador */
+export async function parseQuickAdd(texto) {
+  const local = parseLocal(texto);
+  if (local.length) return local;
+  const limpo = limparOcr(texto);
+  return parseLocal(limpo);
+}
+
 export async function ocrImagem(fileOrBlob, onProgress) {
   const Tesseract = (await import("tesseract.js")).default;
   const result = await Tesseract.recognize(fileOrBlob, "por", {
