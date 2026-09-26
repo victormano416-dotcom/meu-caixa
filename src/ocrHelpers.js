@@ -35,9 +35,6 @@ function extrairValor(str) {
 export function parseLocal(texto) {
   const limpo = limparOcr(texto);
   let linhas = limpo.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 1);
-  if (linhas.length <= 1) {
-    linhas = limpo.split(/(?<=\d)\s+(?=[A-Za-z\u00c0-\u00fa])|(?<=[a-z\u00e0-\u00fa])\s+(?=\d)/i).map((l) => l.trim()).filter(Boolean);
-  }
   if (linhas.length <= 1 && limpo.length > 20) {
     linhas = [limpo];
   }
@@ -66,18 +63,18 @@ export function parseLocal(texto) {
       .trim() || "Lancamento";
     descricao = descricao.slice(0, 40);
 
-    if (/recebi|caiu|sal[a\u00e1]rio|freelance|renda|pix\s*recebido/i.test(low)) {
+    if (/recebi|caiu|salario|salário|freelance|renda|pix\s*recebido/i.test(low)) {
       tipo = "entrada";
-      if (/sal[a\u00e1]rio|todo\s*m[e\u00ea]s/i.test(low)) recorrente = true;
-      categoria = /sal[a\u00e1]rio/i.test(low) ? "Salario" : /freelance|freela/i.test(low) ? "Freelance" : "Renda extra";
-    } else if (/\d+\s*x|parcel|cart[a\u00e3]o|nubank|\bnu\b|inter|\bc6\b|\bbb\b|ita[u\u00fa]|bradesco/i.test(low)) {
+      if (/salario|salário|todo\s*mes|todo\s*mês/i.test(low)) recorrente = true;
+      categoria = /salario|salário/i.test(low) ? "Salário" : /freelance|freela/i.test(low) ? "Freelance" : "Renda extra";
+    } else if (/\d+\s*x|parcel|cartao|cartão|nubank|\bnu\b|inter|\bc6\b|\bbb\b|itau|itaú|bradesco/i.test(low)) {
       tipo = "compraCartao";
       const px = low.match(/(\d+)\s*x/);
       if (px) parcelas = Math.max(1, parseInt(px[1], 10));
       if (/nubank|\bnu\b/i.test(low)) banco = "NU";
       else if (/\bbb\b|banco do brasil/i.test(low)) banco = "BB";
       else if (/inter/i.test(low)) banco = "Inter";
-    } else if (/aluguel|internet|luz|agua|condom|netflix|spotify|todo\s*m[e\u00ea]s|todo\s*dia/i.test(low)) {
+    } else if (/aluguel|internet|luz|agua|água|condom|netflix|spotify|todo\s*mes|todo\s*mês|todo\s*dia/i.test(low)) {
       tipoGasto = "Fixo";
       recorrente = true;
       const d = low.match(/dia\s*(\d{1,2})/);
@@ -87,11 +84,11 @@ export function parseLocal(texto) {
 
     if (tipo === "gasto" || tipo === "compraCartao") {
       if (/uber|99\b|transporte|gasolina|estacionamento|passagem/i.test(low)) categoria = "Transporte";
-      else if (/mercado|ifood|rappi|lanche|bistek|aliment|fruteira|padaria|restaurante|supermercado|sacol/i.test(low)) categoria = "Alimentacao";
-      else if (/farm|remedio|saude|drogaria/i.test(low)) categoria = "Saude";
+      else if (/mercado|ifood|rappi|lanche|bistek|aliment|fruteira|padaria|restaurante|supermercado|sacol/i.test(low)) categoria = "Alimentação";
+      else if (/farm|remedio|remédio|saude|saúde|drogaria/i.test(low)) categoria = "Saúde";
       else if (/cinema|netflix|spotify|lazer|academia|muay|jogo|steam/i.test(low)) categoria = "Lazer";
       else if (/shopee|shein|amazon|magazine|compra|mercado\s*livre/i.test(low)) categoria = "Compras";
-      else if (/casa|sakae|construcao|material/i.test(low)) categoria = "Casa";
+      else if (/casa|sakae|construcao|construção|material/i.test(low)) categoria = "Casa";
     }
 
     out.push({ tipo, descricao, valor, categoria, tipoGasto, recorrente, dia, parcelas, banco });
