@@ -1,0 +1,34 @@
+{
+  "name": "Meu Caixa",
+  "short_name": "Meu Caixa",
+  "description": "Controle de gastos e cartões",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "images",
+          "accept": ["image/*", ".jpg", ".jpeg", ".png", ".webp", ".heic"]
+        }
+      ]
+    }
+  }
+}
