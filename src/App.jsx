@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
-import surfista from "./surfista.mp4";
+import bugsVideo from "./bugs.mp4";
 import bgVideo from "./bg.mp4";
 import spideyVideo from "./spidey.mp4";
 
@@ -30,6 +30,25 @@ const ABAS = [
   { chave: "cartoes", nome: "Cartoes" },
   { chave: "monitoramento", nome: "Monitoramento" },
 ];
+
+/** Ícones da barra inferior (SVG inline, sem depender de biblioteca externa). */
+function IconeAba({ chave, className }) {
+  const p = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", className };
+  switch (chave) {
+    case "inicio":
+      return <svg {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" /></svg>;
+    case "entradas":
+      return <svg {...p}><path d="M12 19V5" /><path d="m5 12 7 7 7-7" /></svg>;
+    case "gastos":
+      return <svg {...p}><path d="M12 5v14" /><path d="m5 12 7-7 7 7" /></svg>;
+    case "cartoes":
+      return <svg {...p}><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20" /></svg>;
+    case "monitoramento":
+      return <svg {...p}><path d="M21 12a9 9 0 1 1-9-9" /><path d="M21 12A9 9 0 0 0 12 3v9z" /></svg>;
+    default:
+      return null;
+  }
+}
 
 /* ---------------- helpers de mês ---------------- */
 
@@ -116,11 +135,10 @@ function useSalvo(chave, inicial) {
 
 /* ---------------- UI base ---------------- */
 
-const input = "w-full bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2.5 text-sm text-neutral-100 outline-none focus:border-white/30 placeholder:text-neutral-600 backdrop-blur-sm";
-const btn = "bg-white text-neutral-900 font-medium text-sm px-4 py-3 rounded-full hover:bg-neutral-200 transition-colors disabled:opacity-40";
-const btnSec = "text-neutral-400 hover:text-neutral-100 text-sm px-4 py-2 rounded-full border border-white/10 bg-white/5 transition-colors";
-const chip = (ativo) => `text-xs px-3.5 py-2 rounded-full border transition-colors whitespace-nowrap backdrop-blur-sm ${ativo ? "bg-white text-neutral-900 border-white" : "border-white/15 text-neutral-400 bg-white/5 hover:text-neutral-200"}`;
-const glass = "bg-neutral-900/50 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl shadow-black/40";
+const input = "w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-400";
+const btn = "bg-white text-neutral-900 font-medium text-sm px-4 py-2 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-40";
+const btnSec = "text-neutral-400 hover:text-neutral-100 text-sm px-4 py-2 rounded-lg border border-neutral-800 transition-colors";
+const chip = (ativo) => `text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${ativo ? "bg-white text-neutral-900 border-white" : "border-neutral-800 text-neutral-400 hover:text-neutral-200"}`;
 
 function Campo({ label, children }) {
   return (
@@ -131,27 +149,21 @@ function Campo({ label, children }) {
   );
 }
 
-function Modal({ titulo, onFechar, children, hideHeader }) {
+function Modal({ titulo, onFechar, children }) {
   useEffect(() => {
     const k = (e) => e.key === "Escape" && onFechar();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onFechar]);
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 overflow-y-auto"
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 pt-16 overflow-y-auto"
       onMouseDown={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className={`${glass} w-full max-w-md relative`}>
-        {!hideHeader && (
-          <div className="flex items-center justify-between px-5 pt-4 pb-2">
-            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto absolute left-1/2 -translate-x-1/2 top-2.5" />
-            <h3 className="text-sm font-medium text-neutral-100 mt-2">{titulo}</h3>
-            <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg mt-2 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">{"×"}</button>
-          </div>
-        )}
-        {hideHeader && (
-          <button onClick={onFechar} className="absolute top-3 right-3 z-10 text-neutral-500 hover:text-neutral-200 text-lg w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">{"×"}</button>
-        )}
-        <div className="p-5 pt-3">{children}</div>
+      <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+          <h3 className="text-sm font-medium text-neutral-100">{titulo}</h3>
+          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg">{"×"}</button>
+        </div>
+        <div className="p-5">{children}</div>
       </div>
     </div>
   );
@@ -250,8 +262,8 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
         </div>
       </div>
 
-      <video src={surfista} autoPlay loop muted playsInline aria-hidden="true"
-        className="h-20 w-auto max-w-[140px] object-contain mx-auto -mb-1 rounded-lg" />
+      <video src={bugsVideo} autoPlay loop muted playsInline aria-hidden="true"
+        className="w-16 h-16 object-contain mx-auto -mb-3 rounded-lg" />
       <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3.5 flex items-center justify-between">
         <span className="text-sm text-neutral-300">Sobra do mês</span>
         <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-400" : "text-white"}`}>{brl(sobra)}</span>
@@ -519,10 +531,10 @@ function ModalCartao({ inicial, onFechar, onSalvar }) {
   return (
     <Modal titulo={inicial.id ? "Editar cartão" : "Novo cartão"} onFechar={onFechar}>
       <Campo label="Nome do cartão">
-        <input className={input} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="" />
+        <input className={input} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Nubank" />
       </Campo>
       <Campo label="Limite do cartão">
-        <input className={input} value={limite} placeholder=""
+        <input className={input} value={limite} placeholder="0,00"
           onChange={(e) => setLimite(e.target.value.replace(/[^0-9.,]/g, ""))} />
       </Campo>
       <div className="flex justify-end gap-2 mt-4">
@@ -562,7 +574,7 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
         </select>
       </Campo>
       <Campo label="Descrição">
-        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="" />
+        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: Notebook" />
       </Campo>
       <Campo label="Categoria">
         <select className={input} value={f.categoria} onChange={(e) => set("categoria", e.target.value)}>
@@ -571,7 +583,7 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
       </Campo>
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Valor total">
-          <input className={input} value={f.valorTotal} placeholder=""
+          <input className={input} value={f.valorTotal} placeholder="0,00"
             onChange={(e) => set("valorTotal", e.target.value.replace(/[^0-9.,]/g, ""))} />
         </Campo>
         <Campo label="Parcelas">
@@ -682,10 +694,10 @@ function ModalGasto({ inicial, onFechar, onSalvar }) {
   return (
     <Modal titulo={inicial.id ? "Editar gasto" : "Novo gasto"} onFechar={onFechar}>
       <Campo label="Descrição">
-        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="" />
+        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: Aluguel, Mercado..." />
       </Campo>
       <Campo label="Valor">
-        <input className={input} value={f.valor} placeholder="" onChange={(e) => set("valor", e.target.value.replace(/[^0-9.,]/g, ""))} />
+        <input className={input} value={f.valor} placeholder="0,00" onChange={(e) => set("valor", e.target.value.replace(/[^0-9.,]/g, ""))} />
       </Campo>
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Categoria">
@@ -777,10 +789,10 @@ function ModalEntrada({ inicial, onFechar, onSalvar }) {
   return (
     <Modal titulo={inicial.id ? "Editar entrada" : "Nova entrada"} onFechar={onFechar}>
       <Campo label="Descrição">
-        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="" />
+        <input className={input} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex: Salário" />
       </Campo>
       <Campo label="Valor">
-        <input className={input} value={f.valor} placeholder="" onChange={(e) => set("valor", e.target.value.replace(/[^0-9.,]/g, ""))} />
+        <input className={input} value={f.valor} placeholder="0,00" onChange={(e) => set("valor", e.target.value.replace(/[^0-9.,]/g, ""))} />
       </Campo>
       <Campo label="Categoria">
         <select className={input} value={f.categoria} onChange={(e) => set("categoria", e.target.value)}>
@@ -999,173 +1011,143 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
   const setR = (campo, valor) => setRascunho((r) => r ? { ...r, [campo]: valor } : r);
 
   return (
-    <Modal titulo="" onFechar={onFechar} hideHeader>
-      {/* chip OCR */}
-      {ocrProgresso != null && (
-        <div className="flex justify-center mb-3">
-          <span className="text-[11px] px-3 py-1 rounded-full bg-white/10 border border-white/15 text-neutral-300 backdrop-blur-md">
-            OCR {ocrProgresso}%
-          </span>
-        </div>
-      )}
-      {ocrProgresso == null && preview && (
-        <div className="flex justify-center mb-3">
-          <span className="text-[11px] px-3 py-1 rounded-full bg-white/10 border border-white/15 text-neutral-300 backdrop-blur-md">
-            OCR pronto
-          </span>
-        </div>
-      )}
+    <Modal titulo="Lancamento rapido" onFechar={onFechar}>
+      <p className="text-xs text-neutral-500 mb-3">
+        Envie o print ou cole o texto. Depois confira valor, data, parcelas e a forma de pagamento.
+      </p>
 
-      {/* painel principal glass */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm text-neutral-300 font-medium">Lancamento rapido</span>
-        </div>
-
-        {/* comprovante */}
-        <div className="border border-dashed border-white/15 rounded-2xl p-3 text-center bg-white/[0.03]">
-          {preview ? (
-            <div className="relative">
-              <img src={preview} alt="" className="max-h-24 mx-auto rounded-xl object-contain" />
-              <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-black/50 rounded-full w-6 h-6" onClick={() => setPreview(null)}>×</button>
+      <div className="mb-3 border border-dashed border-neutral-700 rounded-lg p-3 text-center">
+        {preview ? (
+          <div className="relative">
+            <img src={preview} alt="preview" className="max-h-28 mx-auto rounded object-contain" />
+            <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-neutral-900/80 rounded px-1.5" onClick={() => setPreview(null)}>x</button>
+          </div>
+        ) : (
+          <div className="space-y-2 py-1">
+            <p className="text-xs text-neutral-500">Foto do comprovante</p>
+            <div className="flex gap-2 justify-center flex-wrap">
+              <label className={btnSec + " cursor-pointer"}>
+                Galeria
+                <input type="file" accept="image/*" className="hidden" onChange={onFile} />
+              </label>
+              <label className={btnSec + " cursor-pointer"}>
+                Camera
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+              </label>
             </div>
-          ) : (
-            <div className="py-3 space-y-2">
-              <div className="flex gap-2 justify-center">
-                <label className={btnSec + " cursor-pointer text-xs"}>
-                  Galeria
-                  <input type="file" accept="image/*" className="hidden" onChange={onFile} />
-                </label>
-                <label className={btnSec + " cursor-pointer text-xs"}>
-                  Camera
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Texto bruto do OCR fica oculto apos reconhecer — so formulario limpo */}
-        {!rascunho && (
-          <>
-            <Campo label="">
-              <textarea
-                className={input + " min-h-[56px] resize-none"}
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                placeholder=""
-              />
-            </Campo>
-            <button type="button" className={btn + " w-full"} disabled={carregando || !texto.trim()} onClick={analisar}>
-              {carregando ? "Analisando..." : "Reconhecer"}
-            </button>
-          </>
+          </div>
         )}
+        {ocrProgresso != null && (
+          <p className="text-xs text-white mt-2">Lendo imagem... {ocrProgresso}%</p>
+        )}
+      </div>
 
-        {rascunho && (
-          <div className="space-y-4">
-            <Campo label="Descricao">
-              <input className={input} value={rascunho.descricao} onChange={(e) => setR("descricao", e.target.value)} placeholder="" />
-            </Campo>
+      <Campo label="Texto (OCR ou digitado)">
+        <textarea
+          className={input + " min-h-[72px]"}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Cole o texto do comprovante ou o que o OCR leu"
+        />
+      </Campo>
 
-            <div>
-              <div className="text-xs text-neutral-500 mb-1">Valor</div>
-              <input
-                className="w-full bg-transparent border-0 text-3xl font-semibold text-white outline-none tracking-tight"
-                inputMode="decimal"
-                value={rascunho.valor}
-                onChange={(e) => setR("valor", e.target.value)}
-                placeholder=""
-              />
+      {!rascunho && (
+        <button type="button" className={btn + " w-full mb-3"} disabled={carregando || !texto.trim()} onClick={analisar}>
+          {carregando ? "Analisando..." : "Reconhecer"}
+        </button>
+      )}
+
+      {rascunho && (
+        <div className="space-y-3 border border-neutral-800 rounded-xl p-3 mb-3">
+          <div className="text-xs text-white font-medium">Confirme antes de salvar</div>
+
+          <Campo label="Descricao">
+            <input className={input} value={rascunho.descricao} onChange={(e) => setR("descricao", e.target.value)} />
+          </Campo>
+
+          <Campo label="Valor da parcela / valor">
+            <input className={input} inputMode="decimal" value={rascunho.valor} onChange={(e) => setR("valor", e.target.value)} placeholder="0,00" />
+          </Campo>
+
+          <Campo label="Forma de pagamento">
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: "credito", label: "Credito" },
+                { id: "debito", label: "Debito" },
+                { id: "pix", label: "PIX" },
+                { id: "dinheiro", label: "Dinheiro" },
+                { id: "entrada", label: "Entrada" },
+              ].map((f) => (
+                <button key={f.id} type="button" className={chip(rascunho.forma === f.id)} onClick={() => setR("forma", f.id)}>
+                  {f.label}
+                </button>
+              ))}
             </div>
+          </Campo>
 
-            {rascunho.forma === "credito" && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-neutral-400">Parcelas</span>
-                <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-1 py-1">
-                  <button type="button" className="w-8 h-8 rounded-full text-neutral-300 hover:bg-white/10"
-                    onClick={() => setR("parcelas", Math.max(1, (parseInt(rascunho.parcelas, 10) || 1) - 1))}>−</button>
-                  <span className="w-8 text-center text-sm text-white font-medium">{rascunho.parcelas}</span>
-                  <button type="button" className="w-8 h-8 rounded-full text-neutral-300 hover:bg-white/10"
-                    onClick={() => setR("parcelas", Math.min(48, (parseInt(rascunho.parcelas, 10) || 1) + 1))}>+</button>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <div className="text-xs text-neutral-500 mb-2">Forma de pagamento</div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { id: "credito", label: "Credito" },
-                  { id: "debito", label: "Debito" },
-                  { id: "pix", label: "PIX" },
-                  { id: "dinheiro", label: "Dinheiro" },
-                  { id: "entrada", label: "Entrada" },
-                ].map((f) => (
-                  <button key={f.id} type="button" className={chip(rascunho.forma === f.id)} onClick={() => setR("forma", f.id)}>
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {rascunho.forma === "credito" && (
+          {rascunho.forma === "credito" && (
+            <>
               <Campo label="Cartao">
                 {!cartoes.length ? (
                   <p className="text-xs text-red-400">Cadastre um cartao na aba Cartoes.</p>
                 ) : (
                   <select className={input} value={rascunho.cartaoId} onChange={(e) => setR("cartaoId", e.target.value)}>
-                    <option value=""></option>
-                    {cartoes.map((card) => (
-                      <option key={card.id} value={card.id}>{card.nome}</option>
+                    <option value="">Selecione...</option>
+                    {cartoes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nome}</option>
                     ))}
                   </select>
                 )}
               </Campo>
-            )}
+              <Campo label="Parcelas">
+                <input className={input} type="number" min={1} max={48} value={rascunho.parcelas}
+                  onChange={(e) => setR("parcelas", e.target.value)} />
+              </Campo>
+            </>
+          )}
 
-            {rascunho.forma === "entrada" ? (
-              <Campo label="Categoria">
-                <select className={input} value={rascunho.categoriaEntrada} onChange={(e) => setR("categoriaEntrada", e.target.value)}>
-                  {CAT_ENTRADA.map((x) => <option key={x} value={x}>{x}</option>)}
-                </select>
-              </Campo>
-            ) : (
-              <Campo label="Categoria">
-                <select className={input} value={rascunho.categoria} onChange={(e) => setR("categoria", e.target.value)}>
-                  {CATEGORIAS.map((x) => <option key={x} value={x}>{x}</option>)}
-                </select>
-              </Campo>
-            )}
+          {rascunho.forma === "entrada" ? (
+            <Campo label="Categoria">
+              <select className={input} value={rascunho.categoriaEntrada} onChange={(e) => setR("categoriaEntrada", e.target.value)}>
+                {CAT_ENTRADA.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Campo>
+          ) : (
+            <Campo label="Categoria">
+              <select className={input} value={rascunho.categoria} onChange={(e) => setR("categoria", e.target.value)}>
+                {CATEGORIAS.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Campo>
+          )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <Campo label="Mes">
-                <select className={input} value={rascunho.mes} onChange={(e) => setR("mes", Number(e.target.value))}>
-                  {MESES_LONGOS.map((m, idx) => <option key={m} value={idx}>{m}</option>)}
-                </select>
-              </Campo>
-              <Campo label="Ano">
-                <input className={input} type="number" value={rascunho.ano} onChange={(e) => setR("ano", Number(e.target.value))} />
-              </Campo>
-            </div>
-
-            <button type="button" className={btn + " w-full"} onClick={confirmar}>
-              Confirmar lancamento
-            </button>
-            <button type="button" className={btnSec + " w-full"} onClick={() => setRascunho(null)}>
-              Voltar
-            </button>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Mes (1a parcela)">
+              <select className={input} value={rascunho.mes} onChange={(e) => setR("mes", Number(e.target.value))}>
+                {MESES_LONGOS.map((m, idx) => <option key={m} value={idx}>{m}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Ano">
+              <input className={input} type="number" value={rascunho.ano} onChange={(e) => setR("ano", Number(e.target.value))} />
+            </Campo>
           </div>
-        )}
 
-        {erro && <p className="text-xs text-red-400 mt-1">{erro}</p>}
-      </div>
+          <button type="button" className={btn + " w-full"} onClick={confirmar}>
+            Confirmar lancamento
+          </button>
+          <button type="button" className={btnSec + " w-full"} onClick={() => setRascunho(null)}>
+            Voltar / editar texto
+          </button>
+        </div>
+      )}
+
+      {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
     </Modal>
   );
 }
 
 
-
+/** Toca um vídeo com fundo bege sólido e desenha num canvas removendo esse
+ * fundo em tempo real (chroma-key), deixando só o personagem visível. */
 function SpideyHang({ src }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -1266,22 +1248,11 @@ export default function App() {
         className="fixed inset-0 w-full h-full object-cover z-0" />
       <div className="fixed inset-0 bg-black/55 z-0" />
 
-      <div className="max-w-2xl mx-auto px-4 pb-5 pt-2 relative z-10">
+      <div className="max-w-2xl mx-auto px-4 pb-28 pt-2 relative z-10">
         <div className="mb-1 flex justify-center">
           <SpideyHang src={spideyVideo} />
         </div>
-        <div className="mb-4" />
-
-        <div className="flex gap-1 mb-6 border-b border-neutral-900/70 overflow-x-auto">
-          {ABAS.map((a) => (
-            <button key={a.chave} onClick={() => setAba(a.chave)}
-              className={`px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                aba === a.chave ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"
-              }`}>
-              {a.nome}
-            </button>
-          ))}
-        </div>
+        <div className="mb-6" />
 
         {aba === "inicio" && (
           <Inicio entradas={entradas} gastos={gastos} setGastos={setGastos} cartoes={cartoes}
@@ -1293,8 +1264,27 @@ export default function App() {
         {aba === "monitoramento" && <Monitoramento gastos={gastos} compras={compras} />}
       </div>
 
+      <div className="fixed bottom-5 inset-x-0 flex justify-center z-30 px-4">
+        <div className="relative flex items-center bg-neutral-900/80 backdrop-blur-md border border-neutral-800/60 rounded-full p-1.5 shadow-lg gap-0.5">
+          <div className="absolute top-1.5 bottom-1.5 rounded-full bg-white transition-transform duration-300 ease-out"
+            style={{
+              width: `calc((100% - 12px) / ${ABAS.length})`,
+              transform: `translateX(${ABAS.findIndex((a) => a.chave === aba) * 100}%)`,
+              left: 6,
+            }} />
+          {ABAS.map((a) => (
+            <button key={a.chave} onClick={() => setAba(a.chave)} title={a.nome}
+              className={`relative z-10 w-12 h-11 flex items-center justify-center rounded-full transition-colors ${
+                aba === a.chave ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-200"
+              }`}>
+              <IconeAba chave={a.chave} />
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button onClick={() => setRapido(true)} title={"Lançamento rápido"}
-        className="fixed bottom-6 right-5 md:right-8 w-14 h-14 rounded-full bg-white text-neutral-900 text-2xl font-light shadow-lg hover:bg-neutral-200 transition-colors flex items-center justify-center z-40">
+        className="fixed bottom-24 right-5 md:right-8 w-14 h-14 rounded-full bg-white text-neutral-900 text-2xl font-light shadow-lg hover:bg-neutral-200 transition-colors flex items-center justify-center z-40">
         +
       </button>
 
@@ -1311,7 +1301,7 @@ export default function App() {
       )}
 
       {aviso && (
-        <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
+        <div className="fixed bottom-40 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
           {aviso}
         </div>
       )}
