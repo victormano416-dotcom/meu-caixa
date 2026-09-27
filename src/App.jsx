@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
 import bugsVideo from "./bugs.mp4";
+import topoVideo from "./topo.mp4";
 
 
 /* ---------------- constantes ---------------- */
@@ -1180,7 +1181,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <div className="max-w-2xl mx-auto px-4 py-5">
+      <div className="relative h-48 overflow-hidden">
+        <video src={topoVideo} autoPlay loop muted playsInline aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-x-0 bottom-0 h-24"
+          style={{ background: "linear-gradient(to bottom, transparent, #fafafa)" }} />
+      </div>
+      <div className="max-w-2xl mx-auto px-4 pb-5 -mt-8 relative">
         <div className="mb-5">
           <div className="text-base font-semibold">Meu Caixa</div>
         </div>
