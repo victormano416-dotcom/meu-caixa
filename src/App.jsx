@@ -25,12 +25,32 @@ const COR_CATEGORIA = {
 const CAT_ENTRADA = ["Salário", "Renda extra", "Freelance", "Investimentos", "Outros"];
 
 const ABAS = [
-  { chave: "inicio", nome: "Inicio" },
-  { chave: "entradas", nome: "Entradas" },
-  { chave: "gastos", nome: "Gastos" },
-  { chave: "cartoes", nome: "Cartoes" },
-  { chave: "monitoramento", nome: "Monitoramento" },
+  { chave: "inicio", nome: "Inicio", icone: "home" },
+  { chave: "entradas", nome: "Entradas", icone: "in" },
+  { chave: "gastos", nome: "Gastos", icone: "out" },
+  { chave: "cartoes", nome: "Cartoes", icone: "card" },
+  { chave: "monitoramento", nome: "Monitor", icone: "chart" },
 ];
+
+function IconeAba({ tipo, ativo }) {
+  const stroke = ativo ? "#171717" : "#a3a3a3";
+  const common = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke, strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
+  if (tipo === "home") return (
+    <svg {...common}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 10v10h14V10" /></svg>
+  );
+  if (tipo === "in") return (
+    <svg {...common}><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+  );
+  if (tipo === "out") return (
+    <svg {...common}><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
+  );
+  if (tipo === "card") return (
+    <svg {...common}><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>
+  );
+  return (
+    <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+  );
+}
 
 /* ---------------- helpers de mês ---------------- */
 
@@ -1404,22 +1424,14 @@ export default function App() {
         className="fixed inset-0 w-full h-full object-cover z-0" />
       <div className="fixed inset-0 bg-black/55 z-0" />
 
-      <div className="max-w-2xl mx-auto px-4 pb-5 pt-2 relative z-10">
+      <div className="max-w-2xl mx-auto px-4 pb-28 pt-2 relative z-10">
         <div className="mb-1 flex justify-center">
           <SpideyHang src={spideyVideo} />
         </div>
         <div className="mb-4" />
 
-        <div className="flex gap-1 mb-6 border-b border-neutral-900/70 overflow-x-auto">
-          {ABAS.map((a) => (
-            <button key={a.chave} onClick={() => setAba(a.chave)}
-              className={`px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                aba === a.chave ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"
-              }`}>
-              {a.nome}
-            </button>
-          ))}
-        </div>
+        {/* abas no rodape */}
+
 
         {aba === "inicio" && (
           <Inicio entradas={entradas} gastos={gastos} setGastos={setGastos} cartoes={cartoes}
@@ -1450,6 +1462,24 @@ export default function App() {
           {aviso}
         </div>
       )}
+
+      {/* barra de abas inferior */}
+      <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1 px-2 py-1.5 rounded-full bg-neutral-900/70 backdrop-blur-xl border border-white/10 shadow-lg shadow-black/40">
+        {ABAS.map((a) => (
+          <button
+            key={a.chave}
+            onClick={() => setAba(a.chave)}
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+              aba === a.chave
+                ? "bg-white text-neutral-900"
+                : "text-neutral-400 hover:text-neutral-200"
+            }`}
+            title={a.nome}
+          >
+            <IconeAba tipo={a.icone} ativo={aba === a.chave} />
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
