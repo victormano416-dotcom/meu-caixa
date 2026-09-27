@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
 import surfista from "./surfista.mp4";
+import fabVideo from "./fab.mp4";
 import bgVideo from "./bg.mp4";
 import spideyVideo from "./spidey.mp4";
 
@@ -30,25 +31,6 @@ const ABAS = [
   { chave: "cartoes", nome: "Cartoes" },
   { chave: "monitoramento", nome: "Monitoramento" },
 ];
-
-/** Ícones da barra inferior (SVG inline, sem depender de biblioteca externa). */
-function IconeAba({ chave, className }) {
-  const p = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", className };
-  switch (chave) {
-    case "inicio":
-      return <svg {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" /></svg>;
-    case "entradas":
-      return <svg {...p}><path d="M12 19V5" /><path d="m5 12 7 7 7-7" /></svg>;
-    case "gastos":
-      return <svg {...p}><path d="M12 5v14" /><path d="m5 12 7-7 7 7" /></svg>;
-    case "cartoes":
-      return <svg {...p}><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20" /></svg>;
-    case "monitoramento":
-      return <svg {...p}><path d="M21 12a9 9 0 1 1-9-9" /><path d="M21 12A9 9 0 0 0 12 3v9z" /></svg>;
-    default:
-      return null;
-  }
-}
 
 /* ---------------- helpers de mês ---------------- */
 
@@ -282,33 +264,76 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
         <div className="text-xs text-neutral-500">Gasto por categoria neste mês</div>
       </button>
 
-      <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl p-4">
-        <div className="text-sm text-neutral-300 mb-4">Fatura nos próximos meses</div>
-        <div className="flex items-end gap-2 h-28">
-          {proximos.map((p) => (
-            <div key={rotulo(p.mes)} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
-              <div className="text-xs text-neutral-400 whitespace-nowrap">
-                {p.total > 0 ? brl(p.total).replace("R$", "").trim() : "—"}
+      <div className="bg-neutral-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-4">
+        <div className="text-sm text-neutral-300 mb-3">Fatura nos próximos meses</div>
+        {(() => {
+          const vals = proximos.map((p) => p.total);
+          const maxV = Math.max(1, ...vals);
+          const w = 100;
+          const h = 56;
+          const padY = 4;
+          const pts = vals.map((v, i) => {
+            const x = vals.length === 1 ? w / 2 : (i / (vals.length - 1)) * w;
+            const y = h - padY - ((v / maxV) * (h - padY * 2));
+            return [x, y];
+          });
+          const line = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" ");
+          const area = `${line} L ${w} ${h} L 0 ${h} Z`;
+          return (
+            <div>
+              <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-28" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="fatGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(255,255,255,0.45)" />
+                    <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+                  </linearGradient>
+                </defs>
+                <path d={area} fill="url(#fatGrad)" />
+                <path d={line} fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+              </svg>
+              <div className="flex justify-between mt-1">
+                {proximos.map((p) => (
+                  <div key={rotulo(p.mes)} className="flex-1 text-center">
+                    <div className="text-[10px] text-neutral-400">{p.total > 0 ? brl(p.total).replace("R$", "").trim() : "—"}</div>
+                    <div className="text-[10px] text-neutral-500 mt-0.5">{rotulo(p.mes)}</div>
+                  </div>
+                ))}
               </div>
-              <div className="w-full flex items-end" style={{ height: "60%" }}>
-                <div className="w-full bg-white rounded-t" style={{ height: `${(p.total / maior) * 100}%`, minHeight: p.total > 0 ? 3 : 0 }} />
-              </div>
-              <div className="text-xs text-neutral-500">{rotulo(p.mes)}</div>
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
 
       {cartoes.length > 0 && (
-        <div>
-          <div className="text-sm text-neutral-300 mb-2">Fatura por cartão</div>
-          <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl divide-y divide-neutral-800">
-            {cartoes.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-neutral-300">{c.nome}</span>
-                <span className="text-sm font-medium text-white">{brl(faturaDoMes(compras, mesAtual, c.id))}</span>
-              </div>
-            ))}
+        <div className="space-y-3">
+          <div className="text-sm text-neutral-300">Fatura por cartão</div>
+          <div className="space-y-3">
+            {cartoes.map((card) => {
+              const fat = faturaDoMes(compras, mesAtual, card.id);
+              return (
+                <div
+                  key={card.id}
+                  className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02] backdrop-blur-xl px-4 py-4 min-h-[88px]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none" />
+                  <div className="relative flex flex-col justify-between h-full gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                          {(card.nome || "?").trim().charAt(0).toUpperCase()}
+                        </span>
+                        <span className="text-sm font-medium text-neutral-100 truncate">{card.nome}</span>
+                      </div>
+                      <span className="text-[10px] text-neutral-500 tracking-widest">••••</span>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <span className="text-[10px] text-neutral-500 uppercase tracking-wide">Fatura atual</span>
+                      <span className="text-base font-semibold text-white">{brl(fat)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1227,6 +1252,100 @@ function SpideyHang({ src }) {
   );
 }
 
+
+/** Botao flutuante arrastavel com video circular */
+function FabBotao({ onClick, videoSrc }) {
+  const [pos, setPos] = useState(() => {
+    try {
+      const raw = localStorage.getItem("mc_fab_pos");
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return null; // null = canto inferior direito padrao
+  });
+  const dragging = useRef(false);
+  const moved = useRef(false);
+  const start = useRef({ x: 0, y: 0, left: 0, top: 0 });
+  const size = 58; // medio: nem pequeno nem enorme
+
+  const style = pos
+    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
+    : { right: 20, bottom: 24 };
+
+  const onPointerDown = (e) => {
+    dragging.current = true;
+    moved.current = false;
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    start.current = {
+      x: e.clientX,
+      y: e.clientY,
+      left: rect.left,
+      top: rect.top,
+    };
+    el.setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragging.current) return;
+    const dx = e.clientX - start.current.x;
+    const dy = e.clientY - start.current.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved.current = true;
+    const maxX = window.innerWidth - size - 8;
+    const maxY = window.innerHeight - size - 8;
+    const nx = Math.max(8, Math.min(maxX, start.current.left + dx));
+    const ny = Math.max(8, Math.min(maxY, start.current.top + dy));
+    setPos({ x: nx, y: ny });
+  };
+
+  const onPointerUp = (e) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    try {
+      if (pos) localStorage.setItem("mc_fab_pos", JSON.stringify(pos));
+    } catch (err) {}
+    if (!moved.current) onClick?.();
+  };
+
+  // salvar pos quando muda ao soltar - use pos state on up
+  const onPointerUpSave = (e) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    const wasMoved = moved.current;
+    // read latest from event position
+    if (wasMoved) {
+      setPos((p) => {
+        if (p) {
+          try { localStorage.setItem("mc_fab_pos", JSON.stringify(p)); } catch (err) {}
+        }
+        return p;
+      });
+    }
+    if (!wasMoved) onClick?.();
+  };
+
+  return (
+    <button
+      type="button"
+      title="Lancamento rapido"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUpSave}
+      onPointerCancel={onPointerUpSave}
+      className="fixed z-40 rounded-full overflow-hidden border border-white/20 shadow-lg shadow-black/40 touch-none select-none active:scale-95 transition-transform"
+      style={{ width: size, height: size, ...style }}
+    >
+      <video
+        src={videoSrc}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="w-full h-full object-cover pointer-events-none"
+      />
+    </button>
+  );
+}
+
 export default function App() {
   const [aba, setAba] = useState("inicio");
   const [entradas, setEntradas, p1] = useSalvo("mc_entradas", []);
@@ -1285,11 +1404,22 @@ export default function App() {
         className="fixed inset-0 w-full h-full object-cover z-0" />
       <div className="fixed inset-0 bg-black/55 z-0" />
 
-      <div className="max-w-2xl mx-auto px-4 pb-28 pt-2 relative z-10">
+      <div className="max-w-2xl mx-auto px-4 pb-5 pt-2 relative z-10">
         <div className="mb-1 flex justify-center">
           <SpideyHang src={spideyVideo} />
         </div>
-        <div className="mb-6" />
+        <div className="mb-4" />
+
+        <div className="flex gap-1 mb-6 border-b border-neutral-900/70 overflow-x-auto">
+          {ABAS.map((a) => (
+            <button key={a.chave} onClick={() => setAba(a.chave)}
+              className={`px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                aba === a.chave ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"
+              }`}>
+              {a.nome}
+            </button>
+          ))}
+        </div>
 
         {aba === "inicio" && (
           <Inicio entradas={entradas} gastos={gastos} setGastos={setGastos} cartoes={cartoes}
@@ -1301,29 +1431,7 @@ export default function App() {
         {aba === "monitoramento" && <Monitoramento gastos={gastos} compras={compras} />}
       </div>
 
-      <div className="fixed bottom-5 inset-x-0 flex justify-center z-30 px-4">
-        <div className="relative flex items-center bg-neutral-900/80 backdrop-blur-md border border-neutral-800/60 rounded-full p-1.5 shadow-lg gap-0.5">
-          <div className="absolute top-1.5 bottom-1.5 rounded-full bg-white transition-transform duration-300 ease-out"
-            style={{
-              width: `calc((100% - 12px) / ${ABAS.length})`,
-              transform: `translateX(${ABAS.findIndex((a) => a.chave === aba) * 100}%)`,
-              left: 6,
-            }} />
-          {ABAS.map((a) => (
-            <button key={a.chave} onClick={() => setAba(a.chave)} title={a.nome}
-              className={`relative z-10 w-12 h-11 flex items-center justify-center rounded-full transition-colors ${
-                aba === a.chave ? "text-neutral-900" : "text-neutral-400 hover:text-neutral-200"
-              }`}>
-              <IconeAba chave={a.chave} />
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button onClick={() => setRapido(true)} title={"Lançamento rápido"}
-        className="fixed bottom-24 right-5 md:right-8 w-14 h-14 rounded-full bg-white text-neutral-900 text-2xl font-light shadow-lg hover:bg-neutral-200 transition-colors flex items-center justify-center z-40">
-        +
-      </button>
+      <FabBotao videoSrc={fabVideo} onClick={() => setRapido(true)} />
 
       {rapido && (
         <ModalRapido
@@ -1338,7 +1446,7 @@ export default function App() {
       )}
 
       {aviso && (
-        <div className="fixed bottom-40 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
+        <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
           {aviso}
         </div>
       )}
