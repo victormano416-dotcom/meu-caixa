@@ -3,6 +3,7 @@ import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
 import surfista from "./surfista.mp4";
 import fabVideo from "./fab.mp4";
+import bankaiAvatar from "./bankai-avatar.png";
 import bgVideo from "./bg.mp4";
 import spideyVideo from "./spidey.mp4";
 
@@ -1280,67 +1281,58 @@ function FabBotao({ onClick, videoSrc }) {
       const raw = localStorage.getItem("mc_fab_pos");
       if (raw) return JSON.parse(raw);
     } catch (e) {}
-    return null; // null = canto inferior direito padrao
+    return null;
   });
   const dragging = useRef(false);
   const moved = useRef(false);
   const start = useRef({ x: 0, y: 0, left: 0, top: 0 });
-  const size = 58; // medio: nem pequeno nem enorme
+  const posRef = useRef(pos);
+  const size = 58;
+  posRef.current = pos;
 
   const style = pos
     ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : { right: 20, bottom: 24 };
+    : { right: 20, bottom: 88 }; // acima da barra de abas
 
   const onPointerDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     dragging.current = true;
     moved.current = false;
     const el = e.currentTarget;
     const rect = el.getBoundingClientRect();
-    start.current = {
-      x: e.clientX,
-      y: e.clientY,
-      left: rect.left,
-      top: rect.top,
-    };
-    el.setPointerCapture?.(e.pointerId);
+    start.current = { x: e.clientX, y: e.clientY, left: rect.left, top: rect.top };
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
   };
 
   const onPointerMove = (e) => {
     if (!dragging.current) return;
+    e.preventDefault();
     const dx = e.clientX - start.current.x;
     const dy = e.clientY - start.current.y;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved.current = true;
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved.current = true;
     const maxX = window.innerWidth - size - 8;
     const maxY = window.innerHeight - size - 8;
     const nx = Math.max(8, Math.min(maxX, start.current.left + dx));
     const ny = Math.max(8, Math.min(maxY, start.current.top + dy));
-    setPos({ x: nx, y: ny });
+    const next = { x: nx, y: ny };
+    posRef.current = next;
+    setPos(next);
   };
 
   const onPointerUp = (e) => {
     if (!dragging.current) return;
-    dragging.current = false;
-    try {
-      if (pos) localStorage.setItem("mc_fab_pos", JSON.stringify(pos));
-    } catch (err) {}
-    if (!moved.current) onClick?.();
-  };
-
-  // salvar pos quando muda ao soltar - use pos state on up
-  const onPointerUpSave = (e) => {
-    if (!dragging.current) return;
+    e.preventDefault();
+    e.stopPropagation();
     dragging.current = false;
     const wasMoved = moved.current;
-    // read latest from event position
-    if (wasMoved) {
-      setPos((p) => {
-        if (p) {
-          try { localStorage.setItem("mc_fab_pos", JSON.stringify(p)); } catch (err) {}
-        }
-        return p;
-      });
+    if (wasMoved && posRef.current) {
+      try { localStorage.setItem("mc_fab_pos", JSON.stringify(posRef.current)); } catch (err) {}
     }
-    if (!wasMoved) onClick?.();
+    // delay evita o "ghost click" que fecha o modal na hora
+    if (!wasMoved) {
+      setTimeout(() => onClick?.(), 30);
+    }
   };
 
   return (
@@ -1349,9 +1341,10 @@ function FabBotao({ onClick, videoSrc }) {
       title="Lancamento rapido"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={onPointerUpSave}
-      onPointerCancel={onPointerUpSave}
-      className="fixed z-40 rounded-full overflow-hidden border border-white/20 shadow-lg shadow-black/40 touch-none select-none active:scale-95 transition-transform"
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      className="fixed z-40 rounded-full overflow-hidden border border-white/20 shadow-lg shadow-black/40 touch-none select-none active:scale-95"
       style={{ width: size, height: size, ...style }}
     >
       <video
@@ -1375,6 +1368,21 @@ export default function App() {
   const [rapido, setRapido] = useState(false);
   const [aviso, setAviso] = useState("");
   const [arquivoShare, setArquivoShare] = useState(null);
+  const [perfil, setPerfil] = useSalvo("mc_perfil", { nome: "BANKAI", foto: "" });
+  const [editPerfil, setEditPerfil] = useState(false);
+  const fotoInputRef = useRef(null);
+
+  // evita fechar modal por ghost-click logo apos abrir
+  const rapidoLock = useRef(0);
+  const abrirRapido = () => {
+    rapidoLock.current = Date.now();
+    setRapido(true);
+  };
+  const fecharRapido = () => {
+    if (Date.now() - rapidoLock.current < 400) return;
+    setRapido(false);
+    setArquivoShare(null);
+  };
 
   const notificar = (msg) => {
     setAviso(msg);
@@ -1396,6 +1404,7 @@ export default function App() {
       const file = await consumirCompartilhamento();
       if (cancelled || !file) return false;
       setArquivoShare(file);
+      rapidoLock.current = Date.now();
       setRapido(true);
       limparQuery();
       return true;
@@ -1403,7 +1412,7 @@ export default function App() {
 
     (async () => {
       const qs = new URLSearchParams(window.location.search);
-      if (qs.get("share") === "1") setRapido(true); // abre modal enquanto OCR carrega
+      if (qs.get("share") === "1") { rapidoLock.current = Date.now(); setRapido(true); }
       await tentarShare();
     })();
 
@@ -1415,6 +1424,10 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    document.title = (perfil?.nome || "BANKAI") + " · Caixa";
+  }, [perfil?.nome]);
+
   if (!(p1 && p2 && p3 && p4)) return null;
 
   return (
@@ -1425,10 +1438,29 @@ export default function App() {
       <div className="fixed inset-0 bg-black/55 z-0" />
 
       <div className="max-w-2xl mx-auto px-4 pb-28 pt-2 relative z-10">
-        <div className="mb-1 flex justify-center">
-          <SpideyHang src={spideyVideo} />
+        <div className="mb-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setEditPerfil(true)}
+            className="w-14 h-14 rounded-full overflow-hidden border border-white/20 bg-white/10 shrink-0 shadow-lg"
+            title="Editar perfil"
+          >
+            {perfil.foto ? (
+              <img src={perfil.foto} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <img src={bankaiAvatar} alt="" className="w-full h-full object-cover" />
+            )}
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-neutral-400">Ola,</div>
+            <button type="button" onClick={() => setEditPerfil(true)} className="text-left">
+              <div className="text-xl font-semibold text-white truncate tracking-wide">{perfil.nome || "BANKAI"}</div>
+            </button>
+          </div>
+          <div className="shrink-0 opacity-90">
+            <SpideyHang src={spideyVideo} />
+          </div>
         </div>
-        <div className="mb-4" />
 
         {/* abas no rodape */}
 
@@ -1443,7 +1475,7 @@ export default function App() {
         {aba === "monitoramento" && <Monitoramento gastos={gastos} compras={compras} />}
       </div>
 
-      <FabBotao videoSrc={fabVideo} onClick={() => setRapido(true)} />
+      <FabBotao videoSrc={fabVideo} onClick={abrirRapido} />
 
       {rapido && (
         <ModalRapido
@@ -1451,7 +1483,7 @@ export default function App() {
           entradas={entradas} setEntradas={setEntradas}
           gastos={gastos} setGastos={setGastos}
           cartoes={cartoes} compras={compras} setCompras={setCompras}
-          onFechar={() => { setRapido(false); setArquivoShare(null); }}
+          onFechar={fecharRapido}
           notificar={notificar}
           arquivoInicial={arquivoShare}
         />
@@ -1461,6 +1493,52 @@ export default function App() {
         <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
           {aviso}
         </div>
+      )}
+
+      {editPerfil && (
+        <Modal titulo="Perfil" onFechar={() => setEditPerfil(false)}>
+          <div className="flex flex-col items-center gap-4">
+            <button
+              type="button"
+              onClick={() => fotoInputRef.current?.click()}
+              className="w-24 h-24 rounded-full overflow-hidden border border-white/20 bg-white/10 relative"
+            >
+              {perfil.foto ? (
+                <img src={perfil.foto} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <img src={bankaiAvatar} alt="" className="w-full h-full object-cover" />
+              )}
+              <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] bg-black/60 px-2 py-0.5 rounded-full text-neutral-200">trocar</span>
+            </button>
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setPerfil({ ...perfil, foto: String(reader.result || "") });
+                };
+                reader.readAsDataURL(f);
+                e.target.value = "";
+              }}
+            />
+            <Campo label="Nome">
+              <input
+                className={input}
+                value={perfil.nome}
+                onChange={(e) => setPerfil({ ...perfil, nome: e.target.value.slice(0, 24) })}
+                placeholder=""
+              />
+            </Campo>
+            <button type="button" className={btn + " w-full"} onClick={() => setEditPerfil(false)}>
+              Salvar
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* barra de abas inferior */}
