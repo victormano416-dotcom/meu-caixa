@@ -4,7 +4,6 @@ import { consumirCompartilhamento } from "./shareQueue";
 import bugsVideo from "./bugs.mp4";
 import topoVideo from "./topo.mp4";
 
-
 /* ---------------- constantes ---------------- */
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -12,14 +11,14 @@ const MESES_LONGOS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho"
 
 const CATEGORIAS = ["Casa", "Alimentação", "Transporte", "Estudos", "Lazer", "Compras", "Saúde", "Outros"];
 const COR_CATEGORIA = {
-  Casa: "bg-neutral-900",
-  "Alimentação": "bg-neutral-700",
+  Casa: "bg-neutral-100",
+  "Alimentação": "bg-neutral-300",
   Transporte: "bg-neutral-500",
-  Estudos: "bg-neutral-800",
-  Lazer: "bg-neutral-400",
-  Compras: "bg-neutral-600",
-  "Saúde": "bg-red-500",
-  Outros: "bg-neutral-300",
+  Estudos: "bg-neutral-200",
+  Lazer: "bg-neutral-600",
+  Compras: "bg-neutral-400",
+  "Saúde": "bg-red-400",
+  Outros: "bg-neutral-700",
 };
 const CAT_ENTRADA = ["Salário", "Renda extra", "Freelance", "Investimentos", "Outros"];
 
@@ -116,15 +115,15 @@ function useSalvo(chave, inicial) {
 
 /* ---------------- UI base ---------------- */
 
-const input = "w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900";
-const btn = "bg-neutral-900 text-white font-medium text-sm px-4 py-2 rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-40";
-const btnSec = "text-neutral-600 hover:text-neutral-900 text-sm px-4 py-2 rounded-lg border border-neutral-200 transition-colors";
-const chip = (ativo) => `text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${ativo ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 text-neutral-600 hover:text-neutral-800"}`;
+const input = "w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-400";
+const btn = "bg-white text-neutral-900 font-medium text-sm px-4 py-2 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-40";
+const btnSec = "text-neutral-400 hover:text-neutral-100 text-sm px-4 py-2 rounded-lg border border-neutral-800 transition-colors";
+const chip = (ativo) => `text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap ${ativo ? "bg-white text-neutral-900 border-white" : "border-neutral-800 text-neutral-400 hover:text-neutral-200"}`;
 
 function Campo({ label, children }) {
   return (
     <div className="mb-3">
-      <label className="block text-xs text-neutral-600 mb-1.5">{label}</label>
+      <label className="block text-xs text-neutral-400 mb-1.5">{label}</label>
       {children}
     </div>
   );
@@ -139,10 +138,10 @@ function Modal({ titulo, onFechar, children }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 pt-16 overflow-y-auto"
       onMouseDown={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="bg-white border border-neutral-200 rounded-xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200">
-          <h3 className="text-sm font-medium text-neutral-900">{titulo}</h3>
-          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-800 text-lg">{"×"}</button>
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
+          <h3 className="text-sm font-medium text-neutral-100">{titulo}</h3>
+          <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg">{"×"}</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -163,7 +162,7 @@ function CampoQuando({ f, set, rotuloRecorrente = "Recorrente (todo mês)" }) {
   return (
     <>
       <Campo label={"Repetição"}>
-        <label className="flex items-center gap-2 text-sm text-neutral-700">
+        <label className="flex items-center gap-2 text-sm text-neutral-300">
           <input type="checkbox" checked={f.recorrente} onChange={(e) => set("recorrente", e.target.checked)} />
           {rotuloRecorrente}
         </label>
@@ -220,52 +219,52 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Resumo</h2>
+        <h2 className="text-lg font-semibold text-neutral-100">Resumo</h2>
         <p className="text-sm text-neutral-500">{rotuloLongo(mesAtual)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">ENTRADAS</div>
-          <div className="text-lg font-semibold text-neutral-900">{brl(totalEntradas)}</div>
+          <div className="text-lg font-semibold text-white">{brl(totalEntradas)}</div>
         </div>
-        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">GASTOS FIXOS</div>
-          <div className="text-lg font-semibold text-neutral-900">{brl(totalFixos)}</div>
+          <div className="text-lg font-semibold text-neutral-100">{brl(totalFixos)}</div>
         </div>
-        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">GASTOS VARIÁVEIS</div>
-          <div className="text-lg font-semibold text-neutral-900">{brl(totalVariaveis)}</div>
+          <div className="text-lg font-semibold text-neutral-100">{brl(totalVariaveis)}</div>
         </div>
-        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">FATURA DO CARTÃO</div>
-          <div className="text-lg font-semibold text-neutral-900">{brl(faturaAtual)}</div>
+          <div className="text-lg font-semibold text-white">{brl(faturaAtual)}</div>
         </div>
       </div>
 
       <video src={bugsVideo} autoPlay loop muted playsInline aria-hidden="true"
         className="w-16 h-16 object-contain mx-auto -mb-3 rounded-lg" />
-      <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between">
-        <span className="text-sm text-neutral-700">Sobra do mês</span>
-        <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-500" : "text-neutral-900"}`}>{brl(sobra)}</span>
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
+        <span className="text-sm text-neutral-300">Sobra do mês</span>
+        <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-400" : "text-white"}`}>{brl(sobra)}</span>
       </div>
 
       <button onClick={() => irPara("monitoramento")}
-        className="w-full text-left bg-white border border-neutral-200 rounded-xl p-4 hover:border-neutral-300 transition-colors">
-        <div className="text-sm text-neutral-700 mb-1">{"Ver onde está indo o dinheiro →"}</div>
+        className="w-full text-left bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors">
+        <div className="text-sm text-neutral-300 mb-1">{"Ver onde está indo o dinheiro →"}</div>
         <div className="text-xs text-neutral-500">Gasto por categoria neste mês</div>
       </button>
 
-      <div className="bg-white border border-neutral-200 rounded-xl p-4">
-        <div className="text-sm text-neutral-700 mb-4">Fatura nos próximos meses</div>
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+        <div className="text-sm text-neutral-300 mb-4">Fatura nos próximos meses</div>
         <div className="flex items-end gap-2 h-28">
           {proximos.map((p) => (
             <div key={rotulo(p.mes)} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
-              <div className="text-xs text-neutral-600 whitespace-nowrap">
+              <div className="text-xs text-neutral-400 whitespace-nowrap">
                 {p.total > 0 ? brl(p.total).replace("R$", "").trim() : "—"}
               </div>
               <div className="w-full flex items-end" style={{ height: "60%" }}>
-                <div className="w-full bg-neutral-900 rounded-t" style={{ height: `${(p.total / maior) * 100}%`, minHeight: p.total > 0 ? 3 : 0 }} />
+                <div className="w-full bg-white rounded-t" style={{ height: `${(p.total / maior) * 100}%`, minHeight: p.total > 0 ? 3 : 0 }} />
               </div>
               <div className="text-xs text-neutral-500">{rotulo(p.mes)}</div>
             </div>
@@ -275,12 +274,12 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
 
       {cartoes.length > 0 && (
         <div>
-          <div className="text-sm text-neutral-700 mb-2">Fatura por cartão</div>
-          <div className="bg-white border border-neutral-200 rounded-xl divide-y divide-neutral-200">
+          <div className="text-sm text-neutral-300 mb-2">Fatura por cartão</div>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
             {cartoes.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-neutral-700">{c.nome}</span>
-                <span className="text-sm font-medium text-neutral-900">{brl(faturaDoMes(compras, mesAtual, c.id))}</span>
+                <span className="text-sm text-neutral-300">{c.nome}</span>
+                <span className="text-sm font-medium text-white">{brl(faturaDoMes(compras, mesAtual, c.id))}</span>
               </div>
             ))}
           </div>
@@ -288,9 +287,9 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
       )}
 
       {totalConcluidos > 0 && (
-        <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm text-neutral-700">{totalConcluidos} lançamento(s) já encerrado(s)</div>
+            <div className="text-sm text-neutral-300">{totalConcluidos} lançamento(s) já encerrado(s)</div>
             <div className="text-xs text-neutral-500">Parcelas quitadas e gastos de meses passados</div>
           </div>
           <button className={btnSec} onClick={limparConcluidos}>Fatura paga · limpar</button>
@@ -313,36 +312,36 @@ function Monitoramento({ gastos, compras }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Monitoramento</h2>
+        <h2 className="text-lg font-semibold text-neutral-100">Monitoramento</h2>
         <p className="text-sm text-neutral-500">Onde seu dinheiro está indo · {rotuloLongo(mesAtual)}</p>
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between">
-        <span className="text-sm text-neutral-700">Total gasto no mês</span>
-        <span className="text-xl font-semibold text-neutral-900">{brl(total)}</span>
+      <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
+        <span className="text-sm text-neutral-300">Total gasto no mês</span>
+        <span className="text-xl font-semibold text-neutral-100">{brl(total)}</span>
       </div>
 
       {!linhas.length ? (
         <Vazio texto="Nenhum gasto registrado ainda este mês." />
       ) : (
-        <div className="bg-white border border-neutral-200 rounded-xl p-4 space-y-4">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
           {linhas.map((l) => (
             <div key={l.categoria}>
               <div className="flex items-center justify-between mb-1.5 text-sm">
-                <span className="flex items-center gap-2 text-neutral-800">
+                <span className="flex items-center gap-2 text-neutral-200">
                   <Ponto cor={COR_CATEGORIA[l.categoria]} />
                   {l.categoria}
                 </span>
-                <span className="text-neutral-600">{brl(l.valor)} · {((l.valor / total) * 100).toFixed(0)}%</span>
+                <span className="text-neutral-400">{brl(l.valor)} · {((l.valor / total) * 100).toFixed(0)}%</span>
               </div>
-              <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
+              <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${COR_CATEGORIA[l.categoria]}`} style={{ width: `${(l.valor / maior) * 100}%` }} />
               </div>
             </div>
           ))}
         </div>
       )}
-      <p className="text-xs text-neutral-400">{"Inclui gastos fixos, variáveis e parcelas de cartão que caem neste mês. Só muda quando você lança algo — nada para ajustar aqui."}</p>
+      <p className="text-xs text-neutral-600">{"Inclui gastos fixos, variáveis e parcelas de cartão que caem neste mês. Só muda quando você lança algo — nada para ajustar aqui."}</p>
     </div>
   );
 }
@@ -365,7 +364,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">{"Cartões"}</h2>
+          <h2 className="text-lg font-semibold text-neutral-100">{"Cartões"}</h2>
           <p className="text-sm text-neutral-500">Compras parceladas e fatura mensal</p>
         </div>
         <div className="flex gap-2">
@@ -387,54 +386,54 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
         const expandido = aberto === cartao.id;
 
         return (
-          <div key={cartao.id} className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+          <div key={cartao.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
             <div className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="text-sm font-medium text-neutral-900">{cartao.nome}</div>
+                  <div className="text-sm font-medium text-neutral-100">{cartao.nome}</div>
                   <div className="text-xs text-neutral-500">{doCartao.length} compra(s)</div>
                 </div>
                 <div className="flex gap-2 text-neutral-500">
-                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-800">{"✏️"}</button>
-                  <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-500">{"×"}</button>
+                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-200">{"✏️"}</button>
+                  <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-400">{"×"}</button>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <div className="text-xs text-neutral-500">Fatura deste mês</div>
-                  <div className="text-base font-semibold text-neutral-900">{brl(faturaMes)}</div>
+                  <div className="text-base font-semibold text-white">{brl(faturaMes)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Ainda a pagar</div>
-                  <div className="text-base font-semibold text-neutral-800">{brl(aindaDevo)}</div>
+                  <div className="text-base font-semibold text-neutral-200">{brl(aindaDevo)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Limite</div>
                   {cartao.limite > 0 ? (
-                    <div className="text-base font-semibold text-neutral-800">{brl(cartao.limite)}</div>
+                    <div className="text-base font-semibold text-neutral-200">{brl(cartao.limite)}</div>
                   ) : (
-                    <button className="text-xs text-neutral-500 underline hover:text-neutral-700" onClick={() => setModalCartao(cartao)}>
+                    <button className="text-xs text-neutral-500 underline hover:text-neutral-300" onClick={() => setModalCartao(cartao)}>
                       Definir limite
                     </button>
                   )}
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Disponível</div>
-                  <div className={`text-base font-semibold ${cartao.limite > 0 && cartao.limite - aindaDevo < 0 ? "text-red-500" : "text-neutral-800"}`}>
+                  <div className={`text-base font-semibold ${cartao.limite > 0 && cartao.limite - aindaDevo < 0 ? "text-red-400" : "text-neutral-200"}`}>
                     {cartao.limite > 0 ? brl(cartao.limite - aindaDevo) : "—"}
                   </div>
                 </div>
               </div>
 
-              <button className="text-xs text-neutral-600 hover:text-neutral-800"
+              <button className="text-xs text-neutral-400 hover:text-neutral-200"
                 onClick={() => setAberto(expandido ? null : cartao.id)}>
                 {expandido ? "Ocultar compras" : "Ver compras"}
               </button>
             </div>
 
             {expandido && (
-              <div className="border-t border-neutral-200 divide-y divide-neutral-200">
+              <div className="border-t border-neutral-800 divide-y divide-neutral-800">
                 {!doCartao.length && <div className="px-4 py-3 text-sm text-neutral-500">Nenhuma compra.</div>}
                 {doCartao.map((c) => {
                   const { fim, valorParcela } = periodoCompra(c);
@@ -445,23 +444,23 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                     <div key={c.id} className="px-4 py-3">
                       <div className="flex items-start justify-between gap-3 mb-1.5">
                         <div className="min-w-0">
-                          <div className="text-sm text-neutral-900 truncate">{c.descricao}</div>
+                          <div className="text-sm text-neutral-100 truncate">{c.descricao}</div>
                           <div className="text-xs text-neutral-500 flex items-center gap-1.5">
                             <Ponto cor={COR_CATEGORIA[c.categoria]} />{c.categoria}
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <div className="text-sm text-neutral-900">{c.parcelas}x {brl(valorParcela)}</div>
+                          <div className="text-sm text-neutral-100">{c.parcelas}x {brl(valorParcela)}</div>
                           <div className="text-xs text-neutral-500">total {brl(c.valorTotal)}</div>
                         </div>
                         <div className="flex gap-1.5 shrink-0 text-neutral-500">
-                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-800">{"✏️"}</button>
-                          <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-500">{"×"}</button>
+                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-200">{"✏️"}</button>
+                          <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-400">{"×"}</button>
                         </div>
                       </div>
 
-                      <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden mb-1.5">
-                        <div className={`h-full rounded-full ${quitada ? "bg-neutral-900" : "bg-neutral-400"}`}
+                      <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-1.5">
+                        <div className={`h-full rounded-full ${quitada ? "bg-white" : "bg-neutral-600"}`}
                           style={{ width: `${Math.min(100, (pagas / c.parcelas) * 100)}%` }} />
                       </div>
 
@@ -582,9 +581,9 @@ function ModalCompra({ inicial, cartoes, onFechar, onSalvar }) {
         </Campo>
       </div>
       {total > 0 && (
-        <div className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 text-xs text-neutral-600 space-y-1">
-          <div>{n}x de <span className="text-neutral-900 font-medium">{brl(total / n)}</span></div>
-          <div>De {rotulo({ ano: f.ano, mes: f.mes })} até <span className="text-neutral-800">{rotulo(fim)}</span></div>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-400 space-y-1">
+          <div>{n}x de <span className="text-white font-medium">{brl(total / n)}</span></div>
+          <div>De {rotulo({ ano: f.ano, mes: f.mes })} até <span className="text-neutral-200">{rotulo(fim)}</span></div>
         </div>
       )}
       <div className="flex justify-end gap-2 mt-4">
@@ -609,7 +608,7 @@ function Gastos({ gastos, setGastos }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Gastos</h2>
+          <h2 className="text-lg font-semibold text-neutral-100">Gastos</h2>
           <p className="text-sm text-neutral-500">Fora do cartão · {brl(totalMes)} este mês</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Gasto</button>
@@ -622,20 +621,20 @@ function Gastos({ gastos, setGastos }) {
       </div>
 
       {!lista.length ? <Vazio texto="Nada aqui ainda." /> : (
-        <div className="bg-white border border-neutral-200 rounded-xl divide-y divide-neutral-200">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
           {lista.map((g) => (
             <div key={g.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-neutral-900 truncate">{g.descricao}</div>
+                <div className="text-sm text-neutral-100 truncate">{g.descricao}</div>
                 <div className="text-xs text-neutral-500 flex items-center gap-1.5 mt-0.5">
                   <Ponto cor={COR_CATEGORIA[g.categoria]} />
                   {g.categoria} · {g.tipo}
                   {g.recorrente ? ` · todo dia ${g.dia}` : ` · ${rotulo({ ano: g.ano, mes: g.mes })}`}
                 </div>
               </div>
-              <div className="text-sm text-neutral-900">{brl(g.valor)}</div>
-              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-800">{"✏️"}</button>
-              <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-400 hover:text-red-500">{"×"}</button>
+              <div className="text-sm text-neutral-100">{brl(g.valor)}</div>
+              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-200">{"✏️"}</button>
+              <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-600 hover:text-red-400">{"×"}</button>
             </div>
           ))}
         </div>
@@ -713,25 +712,25 @@ function Entradas({ entradas, setEntradas }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Entradas</h2>
+          <h2 className="text-lg font-semibold text-neutral-100">Entradas</h2>
           <p className="text-sm text-neutral-500">{brl(totalMes)} este mês</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Entrada</button>
       </div>
 
       {!entradas.length ? <Vazio texto="Nenhuma entrada cadastrada." /> : (
-        <div className="bg-white border border-neutral-200 rounded-xl divide-y divide-neutral-200">
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
           {entradas.map((e) => (
             <div key={e.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-neutral-900 truncate">{e.descricao}</div>
+                <div className="text-sm text-neutral-100 truncate">{e.descricao}</div>
                 <div className="text-xs text-neutral-500 mt-0.5">
                   {e.categoria}{e.recorrente ? ` · todo dia ${e.dia}` : ` · ${rotulo({ ano: e.ano, mes: e.mes })}`}
                 </div>
               </div>
-              <div className="text-sm font-medium text-neutral-900">{brl(e.valor)}</div>
-              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-800">{"✏️"}</button>
-              <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-400 hover:text-red-500">{"×"}</button>
+              <div className="text-sm font-medium text-white">{brl(e.valor)}</div>
+              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-200">{"✏️"}</button>
+              <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-600 hover:text-red-400">{"×"}</button>
             </div>
           ))}
         </div>
@@ -997,11 +996,11 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
         Envie o print ou cole o texto. Depois confira valor, data, parcelas e a forma de pagamento.
       </p>
 
-      <div className="mb-3 border border-dashed border-neutral-300 rounded-lg p-3 text-center">
+      <div className="mb-3 border border-dashed border-neutral-700 rounded-lg p-3 text-center">
         {preview ? (
           <div className="relative">
             <img src={preview} alt="preview" className="max-h-28 mx-auto rounded object-contain" />
-            <button type="button" className="absolute top-0 right-0 text-neutral-600 hover:text-red-500 text-sm bg-neutral-100/80 rounded px-1.5" onClick={() => setPreview(null)}>x</button>
+            <button type="button" className="absolute top-0 right-0 text-neutral-400 hover:text-red-400 text-sm bg-neutral-900/80 rounded px-1.5" onClick={() => setPreview(null)}>x</button>
           </div>
         ) : (
           <div className="space-y-2 py-1">
@@ -1019,7 +1018,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
           </div>
         )}
         {ocrProgresso != null && (
-          <p className="text-xs text-neutral-900 mt-2">Lendo imagem... {ocrProgresso}%</p>
+          <p className="text-xs text-white mt-2">Lendo imagem... {ocrProgresso}%</p>
         )}
       </div>
 
@@ -1039,8 +1038,8 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       )}
 
       {rascunho && (
-        <div className="space-y-3 border border-neutral-200 rounded-xl p-3 mb-3">
-          <div className="text-xs text-neutral-900 font-medium">Confirme antes de salvar</div>
+        <div className="space-y-3 border border-neutral-800 rounded-xl p-3 mb-3">
+          <div className="text-xs text-white font-medium">Confirme antes de salvar</div>
 
           <Campo label="Descricao">
             <input className={input} value={rascunho.descricao} onChange={(e) => setR("descricao", e.target.value)} />
@@ -1070,7 +1069,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
             <>
               <Campo label="Cartao">
                 {!cartoes.length ? (
-                  <p className="text-xs text-red-500">Cadastre um cartao na aba Cartoes.</p>
+                  <p className="text-xs text-red-400">Cadastre um cartao na aba Cartoes.</p>
                 ) : (
                   <select className={input} value={rascunho.cartaoId} onChange={(e) => setR("cartaoId", e.target.value)}>
                     <option value="">Selecione...</option>
@@ -1121,7 +1120,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
         </div>
       )}
 
-      {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+      {erro && <p className="text-xs text-red-400 mt-2">{erro}</p>}
     </Modal>
   );
 }
@@ -1179,24 +1178,24 @@ export default function App() {
   if (!(p1 && p2 && p3 && p4)) return null;
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900"
+    <div className="min-h-screen bg-neutral-950 text-neutral-100"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative h-32 overflow-hidden">
         <video src={topoVideo} autoPlay loop muted playsInline aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-x-0 bottom-0 h-24"
-          style={{ background: "linear-gradient(to bottom, transparent, #fafafa)" }} />
+          className="absolute inset-0 w-full h-full object-cover opacity-80" />
+        <div className="absolute inset-x-0 bottom-0 h-16"
+          style={{ background: "linear-gradient(to bottom, transparent, #0a0a0a)" }} />
       </div>
-      <div className="max-w-2xl mx-auto px-4 pb-5 -mt-8 relative">
+      <div className="max-w-2xl mx-auto px-4 pb-5 -mt-4 relative">
         <div className="mb-5">
           <div className="text-base font-semibold">Meu Caixa</div>
         </div>
 
-        <div className="flex gap-1 mb-6 border-b border-neutral-100 overflow-x-auto">
+        <div className="flex gap-1 mb-6 border-b border-neutral-900 overflow-x-auto">
           {ABAS.map((a) => (
             <button key={a.chave} onClick={() => setAba(a.chave)}
               className={`px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                aba === a.chave ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-700"
+                aba === a.chave ? "border-white text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"
               }`}>
               {a.nome}
             </button>
@@ -1214,7 +1213,7 @@ export default function App() {
       </div>
 
       <button onClick={() => setRapido(true)} title={"Lançamento rápido"}
-        className="fixed bottom-6 right-5 md:right-8 w-14 h-14 rounded-full bg-neutral-900 text-white text-2xl font-light shadow-lg hover:bg-neutral-800 transition-colors flex items-center justify-center z-40">
+        className="fixed bottom-6 right-5 md:right-8 w-14 h-14 rounded-full bg-white text-neutral-900 text-2xl font-light shadow-lg hover:bg-neutral-200 transition-colors flex items-center justify-center z-40">
         +
       </button>
 
@@ -1231,7 +1230,7 @@ export default function App() {
       )}
 
       {aviso && (
-        <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-200 border border-neutral-300 text-neutral-900 text-sm px-4 py-2.5 rounded-lg shadow-lg">
+        <div className="fixed bottom-24 right-5 md:right-8 z-50 bg-neutral-800 border border-neutral-700 text-neutral-100 text-sm px-4 py-2.5 rounded-lg shadow-lg">
           {aviso}
         </div>
       )}
