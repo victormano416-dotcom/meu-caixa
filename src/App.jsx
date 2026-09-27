@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
 import bugsVideo from "./bugs.mp4";
-import topoVideo from "./topo.mp4";
+import bgVideo from "./bg.mp4";
+import spideyVideo from "./spidey.mp4";
 
 /* ---------------- constantes ---------------- */
 
@@ -138,7 +139,7 @@ function Modal({ titulo, onFechar, children }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 pt-16 overflow-y-auto"
       onMouseDown={(e) => e.target === e.currentTarget && onFechar()}>
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl w-full max-w-md shadow-2xl">
+      <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
           <h3 className="text-sm font-medium text-neutral-100">{titulo}</h3>
           <button onClick={onFechar} className="text-neutral-500 hover:text-neutral-200 text-lg">{"×"}</button>
@@ -219,24 +220,24 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-100">Resumo</h2>
+        <h2 className="text-lg font-semibold text-white/80">Resumo</h2>
         <p className="text-sm text-neutral-500">{rotuloLongo(mesAtual)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">ENTRADAS</div>
           <div className="text-lg font-semibold text-white">{brl(totalEntradas)}</div>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">GASTOS FIXOS</div>
           <div className="text-lg font-semibold text-neutral-100">{brl(totalFixos)}</div>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">GASTOS VARIÁVEIS</div>
           <div className="text-lg font-semibold text-neutral-100">{brl(totalVariaveis)}</div>
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3">
           <div className="text-xs text-neutral-500 mb-1">FATURA DO CARTÃO</div>
           <div className="text-lg font-semibold text-white">{brl(faturaAtual)}</div>
         </div>
@@ -244,18 +245,18 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
 
       <video src={bugsVideo} autoPlay loop muted playsInline aria-hidden="true"
         className="w-16 h-16 object-contain mx-auto -mb-3 rounded-lg" />
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
+      <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3.5 flex items-center justify-between">
         <span className="text-sm text-neutral-300">Sobra do mês</span>
         <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-400" : "text-white"}`}>{brl(sobra)}</span>
       </div>
 
       <button onClick={() => irPara("monitoramento")}
-        className="w-full text-left bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-neutral-700 transition-colors">
+        className="w-full text-left bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl p-4 hover:border-neutral-700 transition-colors">
         <div className="text-sm text-neutral-300 mb-1">{"Ver onde está indo o dinheiro →"}</div>
         <div className="text-xs text-neutral-500">Gasto por categoria neste mês</div>
       </button>
 
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl p-4">
         <div className="text-sm text-neutral-300 mb-4">Fatura nos próximos meses</div>
         <div className="flex items-end gap-2 h-28">
           {proximos.map((p) => (
@@ -275,7 +276,7 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
       {cartoes.length > 0 && (
         <div>
           <div className="text-sm text-neutral-300 mb-2">Fatura por cartão</div>
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+          <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl divide-y divide-neutral-800">
             {cartoes.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-neutral-300">{c.nome}</span>
@@ -287,7 +288,7 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
       )}
 
       {totalConcluidos > 0 && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3">
           <div>
             <div className="text-sm text-neutral-300">{totalConcluidos} lançamento(s) já encerrado(s)</div>
             <div className="text-xs text-neutral-500">Parcelas quitadas e gastos de meses passados</div>
@@ -312,11 +313,11 @@ function Monitoramento({ gastos, compras }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-neutral-100">Monitoramento</h2>
+        <h2 className="text-lg font-semibold text-white/80">Monitoramento</h2>
         <p className="text-sm text-neutral-500">Onde seu dinheiro está indo · {rotuloLongo(mesAtual)}</p>
       </div>
 
-      <div className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 flex items-center justify-between">
+      <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3.5 flex items-center justify-between">
         <span className="text-sm text-neutral-300">Total gasto no mês</span>
         <span className="text-xl font-semibold text-neutral-100">{brl(total)}</span>
       </div>
@@ -324,7 +325,7 @@ function Monitoramento({ gastos, compras }) {
       {!linhas.length ? (
         <Vazio texto="Nenhum gasto registrado ainda este mês." />
       ) : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-4">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl p-4 space-y-4">
           {linhas.map((l) => (
             <div key={l.categoria}>
               <div className="flex items-center justify-between mb-1.5 text-sm">
@@ -364,7 +365,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">{"Cartões"}</h2>
+          <h2 className="text-lg font-semibold text-white/80">{"Cartões"}</h2>
           <p className="text-sm text-neutral-500">Compras parceladas e fatura mensal</p>
         </div>
         <div className="flex gap-2">
@@ -386,7 +387,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
         const expandido = aberto === cartao.id;
 
         return (
-          <div key={cartao.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+          <div key={cartao.id} className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl overflow-hidden">
             <div className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -608,7 +609,7 @@ function Gastos({ gastos, setGastos }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">Gastos</h2>
+          <h2 className="text-lg font-semibold text-white/80">Gastos</h2>
           <p className="text-sm text-neutral-500">Fora do cartão · {brl(totalMes)} este mês</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Gasto</button>
@@ -621,7 +622,7 @@ function Gastos({ gastos, setGastos }) {
       </div>
 
       {!lista.length ? <Vazio texto="Nada aqui ainda." /> : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl divide-y divide-neutral-800">
           {lista.map((g) => (
             <div key={g.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
@@ -712,14 +713,14 @@ function Entradas({ entradas, setEntradas }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-neutral-100">Entradas</h2>
+          <h2 className="text-lg font-semibold text-white/80">Entradas</h2>
           <p className="text-sm text-neutral-500">{brl(totalMes)} este mês</p>
         </div>
         <button className={btn} onClick={() => setModal({})}>+ Entrada</button>
       </div>
 
       {!entradas.length ? <Vazio texto="Nenhuma entrada cadastrada." /> : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl divide-y divide-neutral-800">
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl divide-y divide-neutral-800">
           {entradas.map((e) => (
             <div key={e.id} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
@@ -1126,6 +1127,50 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
 }
 
 
+/** Toca um vídeo com fundo bege sólido e desenha num canvas removendo esse
+ * fundo em tempo real (chroma-key), deixando só o personagem visível. */
+function SpideyHang({ src }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    let raf;
+    const BG = [244, 240, 226];
+    const TOL = 46;
+
+    const desenhar = () => {
+      raf = requestAnimationFrame(desenhar);
+      if (video.readyState < 2 || video.videoWidth === 0) return;
+      if (canvas.width !== video.videoWidth) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = frame.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const dist = Math.abs(d[i] - BG[0]) + Math.abs(d[i + 1] - BG[1]) + Math.abs(d[i + 2] - BG[2]);
+        if (dist < TOL) d[i + 3] = 0;
+        else if (dist < TOL * 2) d[i + 3] = Math.round((d[i + 3] * (dist - TOL)) / TOL);
+      }
+      ctx.putImageData(frame, 0, 0);
+    };
+    raf = requestAnimationFrame(desenhar);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="w-24 h-16 relative">
+      <video ref={videoRef} src={src} autoPlay loop muted playsInline className="hidden" />
+      <canvas ref={canvasRef} className="w-full h-full" />
+    </div>
+  );
+}
+
 export default function App() {
   const [aba, setAba] = useState("inicio");
   const [entradas, setEntradas, p1] = useSalvo("mc_entradas", []);
@@ -1178,20 +1223,19 @@ export default function App() {
   if (!(p1 && p2 && p3 && p4)) return null;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100"
+    <div className="min-h-screen text-neutral-100 relative"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      <div className="relative h-32 overflow-hidden">
-        <video src={topoVideo} autoPlay loop muted playsInline aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover opacity-80" />
-        <div className="absolute inset-x-0 bottom-0 h-16"
-          style={{ background: "linear-gradient(to bottom, transparent, #0a0a0a)" }} />
-      </div>
-      <div className="max-w-2xl mx-auto px-4 pb-5 -mt-4 relative">
-        <div className="mb-5">
-          <div className="text-base font-semibold">Meu Caixa</div>
-        </div>
+      <video src={bgVideo} autoPlay loop muted playsInline aria-hidden="true"
+        className="fixed inset-0 w-full h-full object-cover z-0" />
+      <div className="fixed inset-0 bg-black/55 z-0" />
 
-        <div className="flex gap-1 mb-6 border-b border-neutral-900 overflow-x-auto">
+      <div className="max-w-2xl mx-auto px-4 pb-5 pt-2 relative z-10">
+        <div className="mb-1 flex justify-center">
+          <SpideyHang src={spideyVideo} />
+        </div>
+        <div className="mb-4" />
+
+        <div className="flex gap-1 mb-6 border-b border-neutral-900/70 overflow-x-auto">
           {ABAS.map((a) => (
             <button key={a.chave} onClick={() => setAba(a.chave)}
               className={`px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
