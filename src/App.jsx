@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
-import bugsVideo from "./bugs.mp4";
+import silverSurfer from "./silver-surfer.png";
 import bgVideo from "./bg.mp4";
 import spideyVideo from "./spidey.mp4";
 
@@ -243,8 +243,8 @@ function Inicio({ entradas, gastos, setGastos, cartoes, compras, setCompras, irP
         </div>
       </div>
 
-      <video src={bugsVideo} autoPlay loop muted playsInline aria-hidden="true"
-        className="w-16 h-16 object-contain mx-auto -mb-3 rounded-lg" />
+      <img src={silverSurfer} alt="" aria-hidden="true"
+        className="h-20 w-auto object-contain mx-auto -mb-1 drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]" />
       <div className="bg-neutral-900/60 backdrop-blur-md border border-neutral-800/60 rounded-xl px-4 py-3.5 flex items-center justify-between">
         <span className="text-sm text-neutral-300">Sobra do mês</span>
         <span className={`text-xl font-semibold ${sobra < 0 ? "text-red-400" : "text-white"}`}>{brl(sobra)}</span>
