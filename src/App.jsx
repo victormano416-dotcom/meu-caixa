@@ -914,6 +914,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
   const [preview, setPreview] = useState(null);
   const [erro, setErro] = useState("");
   const [rascunho, setRascunho] = useState(null); // revisao antes de salvar
+  const [listaRascunhos, setListaRascunhos] = useState(null); // extrato com varios itens
   const agora = hoje();
 
   const processarTexto = async (txt) => {
@@ -1013,10 +1014,35 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
     return "";
   };
 
+  const itemParaRascunho = (p, opts = {}) => {
+    const parcelas = Math.max(1, parseInt(p.parcelas, 10) || 1);
+    const valorParcela = Number(p.valor) || 0;
+    let forma = "credito";
+    if (p.tipo === "entrada") forma = "entrada";
+    else if (p.tipo === "gasto") forma = "debito";
+    else if (p.tipo === "compraCartao") forma = "credito";
+    if (opts.singlePix) forma = "pix";
+    if (opts.singleDebito) forma = "debito";
+    return {
+      descricao: p.descricao || "",
+      valor: valorParcela ? String(valorParcela).replace(".", ",") : "",
+      forma,
+      cartaoId: sugerirCartao(p.banco, p.cartaoFinal) || (cartoes[0]?.id || ""),
+      parcelas,
+      ano: p.ano != null ? p.ano : agora.ano,
+      mes: p.mes != null ? p.mes : agora.mes,
+      categoria: CATEGORIAS.includes(p.categoria) ? p.categoria : "Outros",
+      categoriaEntrada: CAT_ENTRADA.includes(p.categoria) ? p.categoria : "Outros",
+      tipoGasto: p.tipoGasto === "Fixo" ? "Fixo" : "Variavel",
+      marcado: true,
+    };
+  };
+
   const montarRascunho = async (txt) => {
     const lista = await parseQuickAdd(txt.trim());
     if (!lista.length) {
       setErro("Nao identifiquei valor. Ajuste o texto ou preencha manualmente.");
+      setListaRascunhos(null);
       setRascunho({
         descricao: "",
         valor: "",
@@ -1030,32 +1056,24 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       });
       return;
     }
+
+    const low = String(txt || "").toLowerCase();
+    if (lista.length >= 2) {
+      setRascunho(null);
+      setListaRascunhos(lista.map((p) => itemParaRascunho(p)));
+      setErro("");
+      return;
+    }
+
     const p = lista[0];
-    const parcelas = Math.max(1, parseInt(p.parcelas, 10) || 1);
-    const valorParcela = Number(p.valor) || 0;
-    let forma = "credito";
-    if (p.tipo === "entrada") forma = "entrada";
-    else if (p.tipo === "gasto") forma = "debito";
-    else if (p.tipo === "compraCartao") forma = "credito";
-
-    // dicas no texto
-    const low = txt.toLowerCase();
-    if (/\bpix\b/.test(low)) forma = "pix";
-    if (/d[eé]bito/.test(low)) forma = "debito";
-    if (/cr[eé]dito|parcela|\d+\s*x|cart[aã]o/.test(low) && p.tipo !== "entrada") forma = "credito";
-
-    setRascunho({
-      descricao: p.descricao || "",
-      valor: valorParcela ? String(valorParcela).replace(".", ",") : "",
-      forma,
-      cartaoId: sugerirCartao(p.banco, p.cartaoFinal),
-      parcelas,
-      ano: p.ano != null ? p.ano : agora.ano,
-      mes: p.mes != null ? p.mes : agora.mes,
-      categoria: CATEGORIAS.includes(p.categoria) ? p.categoria : (p.tipo === "entrada" ? "Outros" : "Outros"),
-      categoriaEntrada: CAT_ENTRADA.includes(p.categoria) ? p.categoria : "Outros",
-      tipoGasto: p.tipoGasto === "Fixo" ? "Fixo" : "Variavel",
-    });
+    const opts = {};
+    if (/\bpix\b/.test(low) && p.tipo !== "compraCartao") opts.singlePix = true;
+    if (/d[eé]bito/.test(low) && !/cr[eé]dito/.test(low)) opts.singleDebito = true;
+    if (/cr[eé]dito|fatura|nubank|cart[aã]o|\d+\s*x/.test(low) && p.tipo !== "entrada") {
+      // forma credito via tipo
+    }
+    setListaRascunhos(null);
+    setRascunho(itemParaRascunho(p, opts));
     setErro("");
   };
 
@@ -1139,6 +1157,64 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
     onFechar();
   };
 
+  const confirmarLista = () => {
+    if (!listaRascunhos || !listaRascunhos.length) return;
+    const escolhidos = listaRascunhos.filter((x) => x.marcado);
+    if (!escolhidos.length) {
+      setErro("Marque pelo menos um item.");
+      return;
+    }
+    if (escolhidos.some((x) => x.forma === "credito") && !cartoes.length) {
+      setErro("Cadastre um cartao em Cartoes antes.");
+      return;
+    }
+    let novasCompras = [...compras];
+    let novosGastos = [...gastos];
+    let nC = 0, nG = 0;
+    for (const item of escolhidos) {
+      const valor = parseValor(item.valor);
+      if (valor <= 0) continue;
+      const desc = (item.descricao || "Lancamento").slice(0, 60);
+      const ano = Number(item.ano) || agora.ano;
+      const mes = Number(item.mes);
+      const mesOk = mes >= 0 && mes <= 11 ? mes : agora.mes;
+      if (item.forma === "credito") {
+        const cartaoId = item.cartaoId || cartoes[0]?.id;
+        if (!cartaoId) continue;
+        const parcelas = Math.max(1, parseInt(item.parcelas, 10) || 1);
+        const valorTotal = parcelas > 1 ? valor * parcelas : valor;
+        novasCompras.push({
+          id: uid(),
+          cartaoId,
+          descricao: desc,
+          categoria: CATEGORIAS.includes(item.categoria) ? item.categoria : "Outros",
+          valorTotal,
+          parcelas,
+          ano,
+          mes: mesOk,
+        });
+        nC++;
+      } else {
+        novosGastos.push({
+          id: uid(),
+          descricao: desc,
+          valor,
+          categoria: CATEGORIAS.includes(item.categoria) ? item.categoria : "Outros",
+          tipo: "Variável",
+          recorrente: false,
+          dia: item.dia || 10,
+          ano,
+          mes: mesOk,
+        });
+        nG++;
+      }
+    }
+    if (nC) setCompras(novasCompras);
+    if (nG) setGastos(novosGastos);
+    notificar(`${nC + nG} lancamento(s) adicionados.`);
+    onFechar();
+  };
+
   const setR = (campo, valor) => setRascunho((r) => r ? { ...r, [campo]: valor } : r);
 
   return (
@@ -1203,6 +1279,59 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
               {carregando ? "Analisando..." : "Reconhecer"}
             </button>
           </>
+        )}
+
+        {listaRascunhos && (
+          <div className="space-y-3">
+            <div className="text-sm text-neutral-300">
+              Extrato: {listaRascunhos.filter((x) => x.marcado).length}/{listaRascunhos.length} itens
+            </div>
+            {cartoes.length > 0 && (
+              <Campo label="Cartao para os marcados">
+                <select
+                  className={input}
+                  value={listaRascunhos.find((x) => x.marcado)?.cartaoId || cartoes[0]?.id || ""}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setListaRascunhos((L) => L.map((x) => ({ ...x, cartaoId: id })));
+                  }}
+                >
+                  {cartoes.map((card) => (
+                    <option key={card.id} value={card.id}>{card.nome}</option>
+                  ))}
+                </select>
+              </Campo>
+            )}
+            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+              {listaRascunhos.map((item, idx) => (
+                <label key={idx} className={`flex items-start gap-2 px-3 py-2 rounded-2xl border cursor-pointer ${item.marcado ? "border-white/20 bg-white/5" : "border-white/5 opacity-50"}`}>
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!!item.marcado}
+                    onChange={() => setListaRascunhos((L) => L.map((x, i) => i === idx ? { ...x, marcado: !x.marcado } : x))}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-neutral-100 truncate">{item.descricao || "—"}</div>
+                    <div className="text-[11px] text-neutral-500">
+                      {String(item.dia || "").padStart(2, "0")}/{MESES[item.mes] || "?"} · {item.categoria}
+                    </div>
+                  </div>
+                  <div className="text-sm font-medium text-white shrink-0">{brl(parseValor(item.valor))}</div>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className={btnSec + " flex-1"} onClick={() => setListaRascunhos((L) => L.map((x) => ({ ...x, marcado: true })))}>Todos</button>
+              <button type="button" className={btnSec + " flex-1"} onClick={() => setListaRascunhos((L) => L.map((x) => ({ ...x, marcado: false })))}>Nenhum</button>
+            </div>
+            <button type="button" className={btn + " w-full"} onClick={confirmarLista}>
+              Lancar marcados
+            </button>
+            <button type="button" className={btnSec + " w-full"} onClick={() => setListaRascunhos(null)}>
+              Voltar
+            </button>
+          </div>
         )}
 
         {rascunho && (
