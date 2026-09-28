@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
-import { consumirCompartilhamento } from "./shareQueue";
+import { consumirCompartilhamento, registrarLaunchQueue } from "./shareQueue";
 import surfista from "./surfista.mp4";
 import fabVideo from "./fab.mp4";
 import bgVideo from "./bg.mp4";
@@ -33,6 +33,16 @@ const ABAS = [
   { chave: "cartoes", nome: "Cartoes", icone: "card" },
   { chave: "monitoramento", nome: "Monitor", icone: "chart" },
 ];
+
+
+function IconEdit({ className = "w-4 h-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
 
 function IconeAba({ tipo, ativo }) {
   const stroke = ativo ? "#171717" : "#a3a3a3";
@@ -477,7 +487,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                   <div className="text-xs text-neutral-500">{doCartao.length} compra(s)</div>
                 </div>
                 <div className="flex gap-2 text-neutral-500">
-                  <button onClick={() => setModalCartao(cartao)} className="hover:text-neutral-200">{"✏️"}</button>
+                  <button type="button" onClick={() => setModalCartao(cartao)} className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-white/10 transition-colors" title="Editar"><IconEdit className="w-3.5 h-3.5" /></button>
                   <button onClick={() => excluirCartao(cartao.id)} className="hover:text-red-400">{"×"}</button>
                 </div>
               </div>
@@ -547,7 +557,7 @@ function Cartoes({ cartoes, setCartoes, compras, setCompras }) {
                           <div className="text-xs text-neutral-500">total {brl(c.valorTotal)}</div>
                         </div>
                         <div className="flex gap-1.5 shrink-0 text-neutral-500">
-                          <button onClick={() => setModalCompra(c)} className="hover:text-neutral-200">{"✏️"}</button>
+                          <button type="button" onClick={() => setModalCompra(c)} className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-white/10 transition-colors" title="Editar"><IconEdit className="w-3.5 h-3.5" /></button>
                           <button onClick={() => setCompras(compras.filter((x) => x.id !== c.id))} className="hover:text-red-400">{"×"}</button>
                         </div>
                       </div>
@@ -738,7 +748,7 @@ function Gastos({ gastos, setGastos }) {
                 </div>
               </div>
               <div className="text-sm text-neutral-100">{brl(g.valor)}</div>
-              <button onClick={() => setModal(g)} className="text-neutral-500 hover:text-neutral-200">{"✏️"}</button>
+              <button type="button" onClick={() => setModal(g)} className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-white/10 transition-colors" title="Editar"><IconEdit className="w-3.5 h-3.5" /></button>
               <button onClick={() => setGastos(gastos.filter((x) => x.id !== g.id))} className="text-neutral-600 hover:text-red-400">{"×"}</button>
             </div>
           ))}
@@ -834,7 +844,7 @@ function Entradas({ entradas, setEntradas }) {
                 </div>
               </div>
               <div className="text-sm font-medium text-white">{brl(e.valor)}</div>
-              <button onClick={() => setModal(e)} className="text-neutral-500 hover:text-neutral-200">{"✏️"}</button>
+              <button type="button" onClick={() => setModal(e)} className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-white/10 transition-colors" title="Editar"><IconEdit className="w-3.5 h-3.5" /></button>
               <button onClick={() => setEntradas(entradas.filter((x) => x.id !== e.id))} className="text-neutral-600 hover:text-red-400">{"×"}</button>
             </div>
           ))}
@@ -1465,14 +1475,14 @@ export default function App() {
     const limparQuery = () => {
       if (!window.history.replaceState) return;
       const u = new URL(window.location.href);
-      if (!u.searchParams.has("share")) return;
+      if (!u.searchParams.has("share") && !u.searchParams.has("shareError")) return;
       u.searchParams.delete("share");
+      u.searchParams.delete("shareError");
       window.history.replaceState({}, "", u.pathname + u.search);
     };
 
-    const tentarShare = async () => {
-      const payload = await consumirCompartilhamento();
-      if (cancelled || !payload) return false;
+    const aplicarPayload = (payload) => {
+      if (!payload) return false;
       if (payload.kind === "text") {
         setTextoShare(payload.text);
         setArquivoShare(null);
@@ -1488,14 +1498,29 @@ export default function App() {
       return true;
     };
 
+    const tentarShare = async () => {
+      const payload = await consumirCompartilhamento();
+      if (cancelled || !payload) return false;
+      return aplicarPayload(payload);
+    };
+
     (async () => {
       const qs = new URLSearchParams(window.location.search);
-      if (qs.get("share") === "1") { rapidoLock.current = Date.now(); setRapido(true); }
+      if (qs.get("share") === "1") {
+        rapidoLock.current = Date.now();
+        setRapido(true);
+      }
       await tentarShare();
     })();
 
     const onMsg = () => { tentarShare(); };
     window.addEventListener("meu-caixa-share-received", onMsg);
+
+    // "Abrir com" / arquivo direto no app
+    registrarLaunchQueue((payload) => {
+      if (!cancelled) aplicarPayload(payload);
+    });
+
     return () => {
       cancelled = true;
       window.removeEventListener("meu-caixa-share-received", onMsg);
