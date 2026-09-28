@@ -1,5 +1,5 @@
-/* Share Target — grava comprovante e redireciona */
-const CACHE = "mc-share-v4";
+/* Share Target — grava comprovante (imagem/PDF) ou texto e redireciona */
+const CACHE = "mc-share-v5";
 const KEY = "/__mc_shared__";
 
 self.addEventListener("install", (e) => self.skipWaiting());
@@ -16,13 +16,16 @@ self.addEventListener("fetch", (event) => {
       try {
         const formData = await event.request.formData();
         let file = null;
+        const textos = [];
 
+        // 1) arquivos nomeados "images" (manifest share_target)
         for (const item of formData.getAll("images")) {
           if (item instanceof Blob && item.size > 0) {
             file = item;
             break;
           }
         }
+        // 2) qualquer Blob no form
         if (!file) {
           for (const val of formData.values()) {
             if (val instanceof Blob && val.size > 0) {
@@ -31,12 +34,21 @@ self.addEventListener("fetch", (event) => {
             }
           }
         }
+        // 3) textos (title, text, url e outros)
+        for (const [k, v] of formData.entries()) {
+          if (typeof v === "string" && v.trim()) {
+            // evita guardar so URL vazia de tracking se ja tem texto melhor
+            textos.push(v.trim());
+          }
+        }
 
+        const textoJunto = [...new Set(textos)].join("\n").trim();
         const cache = await caches.open(CACHE);
+
         if (file) {
           const buf = await file.arrayBuffer();
           const name = (file instanceof File && file.name) || "comprovante.jpg";
-          const type = file.type || "image/jpeg";
+          const type = file.type || "application/octet-stream";
           await cache.put(
             KEY,
             new Response(buf, {
@@ -44,12 +56,26 @@ self.addEventListener("fetch", (event) => {
                 "content-type": type,
                 "x-file-name": encodeURIComponent(name),
                 "x-file-size": String(buf.byteLength),
+                "x-share-kind": "file",
+                // se o banco mandou texto junto, guarda pra fallback
+                "x-share-text": encodeURIComponent(textoJunto.slice(0, 4000)),
+              },
+            })
+          );
+          saved = true;
+        } else if (textoJunto.length > 3) {
+          await cache.put(
+            KEY,
+            new Response(textoJunto, {
+              headers: {
+                "content-type": "text/plain;charset=utf-8",
+                "x-share-kind": "text",
+                "x-file-size": String(textoJunto.length),
               },
             })
           );
           saved = true;
         } else {
-          // diagnostico: descreve tudo que o celular mandou
           const detalhes = Array.from(formData.entries())
             .map(([k, v]) =>
               k + ":" + (v instanceof Blob ? "arquivo(" + (v.type || "sem-tipo") + "," + v.size + "b)" : "texto")
@@ -61,15 +87,13 @@ self.addEventListener("fetch", (event) => {
               headers: {
                 "content-type": "text/plain",
                 "x-keys": encodeURIComponent(detalhes || "nada"),
+                "x-share-kind": "empty",
               },
             })
           );
         }
 
-        const clients = await self.clients.matchAll({
-          type: "window",
-          includeUncontrolled: true,
-        });
+        const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
         for (const client of clients) {
           client.postMessage({ type: "SHARE_RECEIVED", saved });
         }
