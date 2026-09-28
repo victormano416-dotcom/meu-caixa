@@ -4,6 +4,14 @@ function limparOcr(texto) {
   return String(texto || "")
     .replace(/\u0000/g, "")
     .replace(/[|]/g, " ")
+    // OCR confunde O/I/l com 0/1 perto de numeros
+    .replace(/(\d)[Oo](\d)/g, "$10$2")
+    .replace(/(\d)[Oo]\b/g, "$10")
+    .replace(/\b[Oo](\d)/g, "0$1")
+    .replace(/(\d)[Il](\d)/g, "$11$2")
+    // sinal de multiplicacao unicode
+    .replace(/[×✕✖]/g, "x")
+    .replace(/R\s*\$\s*/gi, "R$ ")
     .replace(/[^\S\n]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -57,17 +65,58 @@ function extrairData(texto) {
 }
 
 function extrairParcelas(texto) {
-  const low = String(texto || "").toLowerCase();
-  let m = low.match(/(\d{1,2})\s*x\s*de\s*r\$?\s*([\d.,]+)/i);
-  if (m) return { total: parseInt(m[1], 10), valorParcela: paraNumero(m[2]) };
-  m = low.match(/(\d{1,2})\s*x\s*de\s*([\d.,]+)/i);
-  if (m) return { total: parseInt(m[1], 10), valorParcela: paraNumero(m[2]) };
-  m = low.match(/(\d{1,2})\s*de\s*(\d{1,2})/);
-  if (m) return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10), valorParcela: null };
-  m = low.match(/parc\.?\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
-  if (m) return { atual: parseInt(m[1], 10), total: parseInt(m[2], 10), valorParcela: null };
-  m = low.match(/(\d{1,2})\s*x\b/);
-  if (m) return { total: parseInt(m[1], 10), valorParcela: null };
+  // normaliza quebras: "10 x de R$\n394,00" -> mesma linha
+  const raw = String(texto || "");
+  const one = raw.replace(/[\r\n]+/g, " ");
+  const low = one.toLowerCase();
+
+  // 1) Prioridade: "10 x de R$ 394,00" / "10x de 394,00"
+  let m =
+    low.match(/(\d{1,2})\s*x\s*de\s*r\$?\s*([\d.,]+)/i) ||
+    low.match(/(\d{1,2})\s*x\s*de\s*([\d.,]+)/i);
+  if (m) {
+    const total = parseInt(m[1], 10);
+    const valorParcela = paraNumero(m[2]);
+    if (total >= 2 && total <= 48) return { total, valorParcela, fonte: "nx" };
+  }
+
+  // 2) "em 10x" / "parcelado em 10 x"
+  m = low.match(/(?:em|parcelad[oa]s?\s+em)\s*(\d{1,2})\s*x\b/);
+  if (m) {
+    const total = parseInt(m[1], 10);
+    if (total >= 2 && total <= 48) return { total, valorParcela: null, fonte: "nx" };
+  }
+
+  // 3) "Parcelas: 10" isolado (rotulo do comprovante)
+  m = low.match(/\bparcelas?\s*[:\-]?\s*(\d{1,2})\b/);
+  if (m) {
+    const total = parseInt(m[1], 10);
+    if (total >= 2 && total <= 48) return { total, valorParcela: null, fonte: "nx" };
+  }
+
+  // 4) "10 x" generico
+  m = low.match(/\b(\d{1,2})\s*x\b/);
+  if (m) {
+    const total = parseInt(m[1], 10);
+    if (total >= 2 && total <= 48) return { total, valorParcela: null, fonte: "nx" };
+  }
+
+  // 5) "Parc 01/10" — denominador e o total; valor do comprovante costuma ser a parcela
+  m = low.match(/parc\.?\s*(\d{1,2})\s*[\/|]\s*(\d{1,2})/);
+  if (m) {
+    const atual = parseInt(m[1], 10);
+    const total = parseInt(m[2], 10);
+    if (total >= 2 && total <= 48) return { atual, total, valorParcela: null, fonte: "fracao" };
+  }
+
+  // 6) "3 de 10"
+  m = low.match(/\b(\d{1,2})\s*de\s*(\d{1,2})\b/);
+  if (m) {
+    const atual = parseInt(m[1], 10);
+    const total = parseInt(m[2], 10);
+    if (total >= 2 && total <= 48 && atual <= total) return { atual, total, valorParcela: null, fonte: "fracao" };
+  }
+
   return null;
 }
 
@@ -189,14 +238,33 @@ export function parseLocal(texto) {
   }
 
   if (valorCampo && parcelas > 1 && valorParcela) {
+    // Valor do comprovante costuma ser o TOTAL; parcela * N deve bater
     valorTotal = valorCampo;
-    if (Math.abs(valorCampo - valorParcela * parcelas) > 1 && valorCampo < valorParcela * parcelas) {
-      valorParcela = valorCampo;
+    const prod = valorParcela * parcelas;
+    if (Math.abs(valorCampo - prod) <= 1.5) {
+      // ok: 3940 e 10x 394
+    } else if (Math.abs(valorCampo - valorParcela) <= 1.5) {
+      // campo "Valor" veio como parcela
       valorTotal = valorParcela * parcelas;
+    } else if (valorCampo > prod * 0.5 && valorCampo < prod * 1.5) {
+      // pequena divergencia de OCR: confia no total do campo e recalcula parcela
+      valorTotal = valorCampo;
+      valorParcela = valorTotal / parcelas;
+    } else {
+      // se 10x 394 e valor 3940 bate na outra ordem
+      valorTotal = Math.max(valorCampo, prod);
+      valorParcela = valorTotal / parcelas;
     }
   } else if (valorCampo && parcelas > 1 && !valorParcela) {
-    valorTotal = valorCampo;
-    valorParcela = valorTotal / parcelas;
+    if (parcInfo && parcInfo.fonte === "fracao") {
+      // "Parc 3/10" + Valor 150 => 150 e a parcela
+      valorParcela = valorCampo;
+      valorTotal = valorParcela * parcelas;
+    } else {
+      // "10x" / "Parcelas 10" + Valor 3940 => total
+      valorTotal = valorCampo;
+      valorParcela = valorTotal / parcelas;
+    }
   } else if (valorCampo) {
     valorParcela = valorCampo;
     valorTotal = valorCampo;
