@@ -1,34 +1,14 @@
-# Meu Caixa
+# Meu Caixa (BANKAI)
 
-App de controle financeiro pessoal em React + Tailwind.
+**URL correta do app:** https://meu-caixa-jade.vercel.app
 
-## Funcionalidades
-- Entradas e gastos (fixos / variáveis, recorrentes)
-- Cartões de crédito com compras parceladas e fatura
-- Resumo do mês e monitoramento por categoria
-- Lançamento rápido (usa API da Anthropic — precisa de chave/proxy para funcionar no browser)
+> Nao use meu-caixa.vercel.app — e outro produto.
 
-## Rodar localmente
-
-```bash
-npm install
-npm run dev
-```
-
-## Deploy grátis (Vercel)
-
-1. Acesse [vercel.com](https://vercel.com) e faça login com GitHub
-2. Importe este repositório
-3. Deploy automático
-
-Ou use o botão:
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/victormano416-dotcom/meu-caixa)
+## Atualizar o App.jsx
+1. Abra `src/App.jsx` no GitHub
+2. Cole o arquivo completo que o Grok enviou
+3. Commit → espere o Vercel (1–2 min)
+4. No celular: feche o app da tela inicial e abra pelo link de novo (ou limpe dados do site)
 
 ## Stack
-- React 18
-- Vite
-- Tailwind CSS
-- localStorage para persistência
-
-Dados ficam salvos no navegador do usuário.
+React 18 + Vite + Tailwind + Tesseract.js
