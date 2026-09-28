@@ -16,7 +16,7 @@ async function lerCacheUmaVez() {
       await cache.delete(KEY);
       if (text === "NO_FILE") {
         window.__mcShareError = "no-file";
-        window.__mcShareKeys = res.headers.get("x-keys") || "";
+        try { window.__mcShareKeys = decodeURIComponent(res.headers.get("x-keys") || ""); } catch { window.__mcShareKeys = ""; }
       }
       return null;
     }
@@ -45,6 +45,15 @@ export async function consumirCompartilhamento() {
     const file = await lerCacheUmaVez();
     if (file && file.size > 100) return file;
     await new Promise((ok) => setTimeout(ok, 200));
+  }
+  // DIAGNOSTICO TEMPORARIO: avisa por que nao veio imagem
+  if (window.location.search.includes("share=1") && !window.__mcDiagMostrado) {
+    window.__mcDiagMostrado = true;
+    if (window.__mcShareError === "no-file") {
+      alert("Diagnostico: o celular entregou o compartilhamento SEM imagem. Recebido: " + (window.__mcShareKeys || "nada"));
+    } else {
+      alert("Diagnostico: a pagina abriu mas nao achou nada guardado (cache vazio).");
+    }
   }
   return null;
 }
