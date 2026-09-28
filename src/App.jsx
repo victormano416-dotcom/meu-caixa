@@ -897,7 +897,7 @@ function ModalEntrada({ inicial, onFechar, onSalvar }) {
 
 // parseQuickAdd importado de ./ocrHelpers (sem fetch)
 
-function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, notificar, arquivoInicial }) {
+function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, notificar, arquivoInicial, textoInicial }) {
   const [texto, setTexto] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [ocrProgresso, setOcrProgresso] = useState(null);
@@ -906,15 +906,45 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
   const [rascunho, setRascunho] = useState(null); // revisao antes de salvar
   const agora = hoje();
 
-  const processarImagem = async (fileOrBlob) => {
+  const processarTexto = async (txt) => {
+    const t = String(txt || "").trim();
+    if (!t) return;
+    setErro("");
+    setRascunho(null);
+    setTexto(t);
+    await montarRascunho(t);
+  };
+
+  const processarImagem = async (fileOrBlob, textHint) => {
     if (!fileOrBlob) return;
     setErro("");
     setOcrProgresso(0);
     setRascunho(null);
+    const type = (fileOrBlob.type || "").toLowerCase();
+    const name = (fileOrBlob.name || "").toLowerCase();
+    const isPdf = type.includes("pdf") || name.endsWith(".pdf");
+
     try {
+      if (isPdf) {
+        // PDF: OCR de imagem nao aplica; usa texto junto no share, se houver
+        setPreview(null);
+        setOcrProgresso(null);
+        if (textHint && String(textHint).trim().length > 3) {
+          await processarTexto(textHint);
+          return;
+        }
+        setErro("Recebi um PDF. O reconhecimento automatico funciona melhor com print (imagem). Voce pode colar o texto do comprovante abaixo.");
+        return;
+      }
+
       setPreview(URL.createObjectURL(fileOrBlob));
       const extraido = await ocrImagem(fileOrBlob, setOcrProgresso);
       if (!extraido) {
+        if (textHint && String(textHint).trim().length > 3) {
+          setOcrProgresso(null);
+          await processarTexto(textHint);
+          return;
+        }
         setErro("Nao consegui ler texto na imagem. Tente um print mais nitido.");
         setOcrProgresso(null);
         return;
@@ -923,15 +953,21 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       setOcrProgresso(null);
       await montarRascunho(extraido);
     } catch (e) {
+      if (textHint && String(textHint).trim().length > 3) {
+        setOcrProgresso(null);
+        await processarTexto(textHint);
+        return;
+      }
       setErro(e.message || "Falha no OCR");
       setOcrProgresso(null);
     }
   };
 
   useEffect(() => {
-    if (arquivoInicial) processarImagem(arquivoInicial);
+    if (arquivoInicial) processarImagem(arquivoInicial.file || arquivoInicial, arquivoInicial.textHint);
+    else if (textoInicial) processarTexto(textoInicial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arquivoInicial]);
+  }, [arquivoInicial, textoInicial]);
 
   const onFile = (e) => {
     const file = e.target.files?.[0];
@@ -1131,11 +1167,11 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
               <div className="flex gap-2 justify-center">
                 <label className={btnSec + " cursor-pointer text-xs"}>
                   Galeria
-                  <input type="file" accept="image/*" className="hidden" onChange={onFile} />
+                  <input type="file" accept="image/*,application/pdf,.pdf" className="hidden" onChange={onFile} />
                 </label>
                 <label className={btnSec + " cursor-pointer text-xs"}>
                   Camera
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+                  <input type="file" accept="image/*,application/pdf,.pdf" capture="environment" className="hidden" onChange={onFile} />
                 </label>
               </div>
             </div>
@@ -1400,6 +1436,7 @@ export default function App() {
   const [rapido, setRapido] = useState(false);
   const [aviso, setAviso] = useState("");
   const [arquivoShare, setArquivoShare] = useState(null);
+  const [textoShare, setTextoShare] = useState(null);
   const [perfil, setPerfil] = useSalvo("mc_perfil", { nome: "BANKAI", foto: "" });
   const [editPerfil, setEditPerfil] = useState(false);
   const fotoInputRef = useRef(null);
@@ -1414,6 +1451,7 @@ export default function App() {
     if (Date.now() - rapidoLock.current < 400) return;
     setRapido(false);
     setArquivoShare(null);
+    setTextoShare(null);
   };
 
   const notificar = (msg) => {
@@ -1433,9 +1471,17 @@ export default function App() {
     };
 
     const tentarShare = async () => {
-      const file = await consumirCompartilhamento();
-      if (cancelled || !file) return false;
-      setArquivoShare(file);
+      const payload = await consumirCompartilhamento();
+      if (cancelled || !payload) return false;
+      if (payload.kind === "text") {
+        setTextoShare(payload.text);
+        setArquivoShare(null);
+      } else if (payload.kind === "file") {
+        setArquivoShare(payload);
+        setTextoShare(null);
+      } else {
+        return false;
+      }
       rapidoLock.current = Date.now();
       setRapido(true);
       limparQuery();
@@ -1512,13 +1558,20 @@ export default function App() {
 
       {rapido && (
         <ModalRapido
-          key={arquivoShare ? `share-${arquivoShare.size}-${arquivoShare.name || "img"}` : "manual"}
+          key={
+            arquivoShare
+              ? `file-${arquivoShare.file?.size || arquivoShare.size}-${arquivoShare.file?.name || arquivoShare.name || "img"}`
+              : textoShare
+                ? `text-${textoShare.length}`
+                : "manual"
+          }
           entradas={entradas} setEntradas={setEntradas}
           gastos={gastos} setGastos={setGastos}
           cartoes={cartoes} compras={compras} setCompras={setCompras}
           onFechar={fecharRapido}
           notificar={notificar}
           arquivoInicial={arquivoShare}
+          textoInicial={textoShare}
         />
       )}
 
