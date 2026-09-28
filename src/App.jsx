@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
-import { consumirCompartilhamento, registrarLaunchQueue } from "./shareQueue";
+import { consumirCompartilhamento } from "./shareQueue";
 import surfista from "./surfista.mp4";
 import fabVideo from "./fab.mp4";
 import bgVideo from "./bg.mp4";
@@ -1516,10 +1516,16 @@ export default function App() {
     const onMsg = () => { tentarShare(); };
     window.addEventListener("meu-caixa-share-received", onMsg);
 
-    // "Abrir com" / arquivo direto no app
-    registrarLaunchQueue((payload) => {
-      if (!cancelled) aplicarPayload(payload);
-    });
+    // File Handling / "Abrir com" (quando o browser suportar)
+    try {
+      if ("launchQueue" in window && window.launchQueue && typeof window.launchQueue.setConsumer === "function") {
+        window.launchQueue.setConsumer(async (params) => {
+          const files = params.files || [];
+          if (!files.length || cancelled) return;
+          aplicarPayload({ kind: "file", file: files[0] });
+        });
+      }
+    } catch (e) {}
 
     return () => {
       cancelled = true;
