@@ -212,9 +212,107 @@ function parseTextoLivre(limpo, low) {
   }];
 }
 
+
+
+const MESES_ABREV = {
+  jan: 0, janeiro: 0,
+  fev: 1, fevereiro: 1,
+  mar: 2, marco: 2, "março": 2,
+  abr: 3, abril: 3,
+  mai: 4, maio: 4,
+  jun: 5, junho: 5,
+  jul: 6, julho: 6,
+  ago: 7, agosto: 7,
+  set: 8, setembro: 8,
+  out: 9, outubro: 9,
+  nov: 10, novembro: 10,
+  dez: 11, dezembro: 11,
+};
+
+/** Extrato/fatura: varias linhas "02 AGO Descricao R$ 12,34" (Nubank e similares) */
+function parseExtratoLinhas(texto) {
+  const limpo = limparOcr(texto);
+  const lines = limpo.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const itens = [];
+
+  let anoFatura = new Date().getFullYear();
+  const mAno = limpo.match(/fatura\s+\d{1,2}\s+\w+\s+(20\d{2})/i) || limpo.match(/\b(20\d{2})\b/);
+  if (mAno) anoFatura = parseInt(mAno[1], 10);
+
+  const reMes = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez|janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro";
+
+  for (let line of lines) {
+    const low = line.toLowerCase();
+    if (/^pagamentos?\b/i.test(low)) continue;
+    if (/pagamento em\b/i.test(low)) continue;
+    if (/total|saldo anterior|limite|vencimento|emiss[aã]o|resolu[cç]/i.test(low)) continue;
+    if (/-\s*r\$|r\$\s*-/i.test(line)) continue;
+
+    line = line.replace(/[·.•*]{2,}\s*\d{3,4}/g, " ").replace(/\s+/g, " ").trim();
+
+    const re = new RegExp("^(\\d{1,2})\\s+(" + reMes + ")\\s+(.+?)\\s+r\\$\\s*([\\d.]+,\\d{2})\\s*$", "i");
+    let m = line.match(re);
+    if (!m) {
+      const re2 = new RegExp("^(\\d{1,2})\\s+(" + reMes + ")\\s+(.+?)\\s+([\\d.]+,\\d{2})\\s*$", "i");
+      m = line.match(re2);
+    }
+    if (!m) continue;
+
+    const dia = parseInt(m[1], 10);
+    const mesKey = m[2].toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+    const mes = MESES_ABREV[mesKey.slice(0, 3)] ?? MESES_ABREV[mesKey];
+    if (mes == null || dia < 1 || dia > 31) continue;
+
+    let descRaw = (m[3] || "").trim().replace(/^nu\s+/i, "").replace(/\s+/g, " ").trim();
+    if (!descRaw || descRaw.length < 2) continue;
+    if (/^\d{3,4}$/.test(descRaw)) continue;
+
+    const valor = paraNumero(m[4]);
+    if (!valor || valor <= 0) continue;
+    if (/victor|manoel|oliveira|barros/i.test(descRaw) && valor > 500) continue;
+
+    let soParcelaFatura = false;
+    let parcelasOriginais = 1;
+    const mp = descRaw.match(/parcela\s*(\d{1,2})\s*\/\s*(\d{1,2})/i);
+    if (mp) {
+      parcelasOriginais = Math.max(1, parseInt(mp[2], 10) || 1);
+      soParcelaFatura = parcelasOriginais > 1;
+    }
+
+    const desc = extrairDescricao(descRaw, descRaw);
+    const cat = categorizar(desc, descRaw.toLowerCase());
+
+    itens.push({
+      tipo: "compraCartao",
+      forma: "credito",
+      descricao: desc.slice(0, 48),
+      valor,
+      valorTotal: valor,
+      categoria: cat,
+      tipoGasto: "Variavel",
+      recorrente: false,
+      dia,
+      parcelas: 1,
+      soParcelaFatura,
+      parcelasOriginais,
+      banco: /nupay|nubank|\bnu\b/i.test(descRaw + " " + limpo) ? "NU" : detectarBanco(limpo.toLowerCase(), ""),
+      cartaoFinal: null,
+      ano: anoFatura,
+      mes,
+    });
+  }
+
+  return itens;
+}
+
+
 export function parseLocal(texto) {
   const limpo = limparOcr(texto);
   const low = limpo.toLowerCase();
+
+  // Extrato/fatura com varias compras (Nubank e similares)
+  const extrato = parseExtratoLinhas(limpo);
+  if (extrato.length >= 2) return extrato;
 
   const estabelecimento = campo(limpo, ["Estabelecimento", "estabelecimento", "Destino", "Loja"]);
   const valorTxt = campo(limpo, ["Valor", "valor"]);
