@@ -49,12 +49,18 @@ self.addEventListener("fetch", (event) => {
           );
           saved = true;
         } else {
+          // diagnostico: descreve tudo que o celular mandou
+          const detalhes = Array.from(formData.entries())
+            .map(([k, v]) =>
+              k + ":" + (v instanceof Blob ? "arquivo(" + (v.type || "sem-tipo") + "," + v.size + "b)" : "texto")
+            )
+            .join(" | ");
           await cache.put(
             KEY,
             new Response("NO_FILE", {
               headers: {
                 "content-type": "text/plain",
-                "x-keys": Array.from(formData.keys()).join(","),
+                "x-keys": encodeURIComponent(detalhes || "nada"),
               },
             })
           );
