@@ -1,31 +1,55 @@
-/** Lê imagem vinda do Android Share Target */
+/** Lê imagem/PDF/texto vindo do Android Share Target */
 
-const CACHE = "mc-share-v4";
+const CACHE = "mc-share-v5";
 const KEY = "/__mc_shared__";
 
+/**
+ * @returns {Promise<null | { kind: 'file', file: File, textHint?: string } | { kind: 'text', text: string }>}
+ */
 async function lerCacheUmaVez() {
   try {
     const cache = await caches.open(CACHE);
     const res = await cache.match(KEY);
     if (!res) return null;
 
-    const ctype = res.headers.get("content-type") || "";
-    // flag de erro
-    if (ctype.includes("text/plain")) {
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    const kind = res.headers.get("x-share-kind") || "";
+
+    // flag de erro / vazio
+    if (kind === "empty" || (ctype.includes("text/plain") && !kind)) {
       const text = await res.text();
       await cache.delete(KEY);
       if (text === "NO_FILE") {
         window.__mcShareError = "no-file";
-        try { window.__mcShareKeys = decodeURIComponent(res.headers.get("x-keys") || ""); } catch { window.__mcShareKeys = ""; }
+        try {
+          window.__mcShareKeys = decodeURIComponent(res.headers.get("x-keys") || "");
+        } catch {
+          window.__mcShareKeys = "";
+        }
       }
       return null;
     }
 
+    // texto puro (banco compartilhou so o texto do comprovante)
+    if (kind === "text" || (ctype.includes("text/plain") && kind === "text")) {
+      const text = await res.text();
+      await cache.delete(KEY);
+      if (!text || text.trim().length < 3) return null;
+      return { kind: "text", text: text.trim() };
+    }
+
+    // arquivo (imagem ou PDF)
     const buf = await res.arrayBuffer();
-    const sizeHdr = res.headers.get("x-file-size");
+    let textHint = "";
+    try {
+      textHint = decodeURIComponent(res.headers.get("x-share-text") || "");
+    } catch {}
     await cache.delete(KEY);
 
-    if (!buf || buf.byteLength < 100) return null;
+    if (!buf || buf.byteLength < 50) {
+      if (textHint && textHint.length > 3) return { kind: "text", text: textHint };
+      return null;
+    }
 
     const type = ctype || "image/jpeg";
     let name = "comprovante.jpg";
@@ -33,7 +57,11 @@ async function lerCacheUmaVez() {
       name = decodeURIComponent(res.headers.get("x-file-name") || name);
     } catch {}
 
-    return new File([buf], name, { type });
+    return {
+      kind: "file",
+      file: new File([buf], name, { type }),
+      textHint: textHint || undefined,
+    };
   } catch (e) {
     console.warn("lerCache", e);
     return null;
@@ -42,17 +70,17 @@ async function lerCacheUmaVez() {
 
 export async function consumirCompartilhamento() {
   for (let i = 0; i < 25; i++) {
-    const file = await lerCacheUmaVez();
-    if (file && file.size > 100) return file;
+    const payload = await lerCacheUmaVez();
+    if (payload) return payload;
     await new Promise((ok) => setTimeout(ok, 200));
   }
-  // DIAGNOSTICO TEMPORARIO: avisa por que nao veio imagem
   if (window.location.search.includes("share=1") && !window.__mcDiagMostrado) {
     window.__mcDiagMostrado = true;
     if (window.__mcShareError === "no-file") {
-      alert("Diagnostico: o celular entregou o compartilhamento SEM imagem. Recebido: " + (window.__mcShareKeys || "nada"));
-    } else {
-      alert("Diagnostico: a pagina abriu mas nao achou nada guardado (cache vazio).");
+      alert(
+        "Diagnostico: o celular entregou o compartilhamento SEM imagem e SEM texto util. Recebido: " +
+          (window.__mcShareKeys || "nada")
+      );
     }
   }
   return null;
@@ -70,8 +98,4 @@ export function registrarServiceWorker() {
 
   if (document.readyState === "complete") reg();
   else window.addEventListener("load", reg);
-
-  // Nao reagir ao aviso SHARE_RECEIVED: se o app ja estiver aberto, a pagina antiga
-  // "roubava" a imagem do cache e a pagina nova (aberta por /?share=1) ficava vazia.
-  // A leitura acontece so na pagina nova, que sempre e aberta apos o compartilhamento.
 }
