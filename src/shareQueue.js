@@ -62,9 +62,7 @@ export function registrarServiceWorker() {
   if (document.readyState === "complete") reg();
   else window.addEventListener("load", reg);
 
-  navigator.serviceWorker.addEventListener("message", (event) => {
-    if (event.data && event.data.type === "SHARE_RECEIVED") {
-      window.dispatchEvent(new CustomEvent("meu-caixa-share-received"));
-    }
-  });
+  // Nao reagir ao aviso SHARE_RECEIVED: se o app ja estiver aberto, a pagina antiga
+  // "roubava" a imagem do cache e a pagina nova (aberta por /?share=1) ficava vazia.
+  // A leitura acontece so na pagina nova, que sempre e aberta apos o compartilhamento.
 }
