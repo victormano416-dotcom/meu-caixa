@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
+import {
+  adicionarComprovante,
+  listarComprovantes,
+  atualizarComprovante,
+  removerComprovante,
+  removerLancados,
+} from "./comprovantesStore";
 import surfista from "./surfista.mp4";
 import fabVideo from "./fab.mp4";
 import bgVideo from "./bg.mp4";
@@ -32,6 +39,7 @@ const ABAS = [
   { chave: "gastos", nome: "Gastos", icone: "out" },
   { chave: "cartoes", nome: "Cartoes", icone: "card" },
   { chave: "monitoramento", nome: "Monitor", icone: "chart" },
+  { chave: "comprovantes", nome: "Comprovantes", icone: "inbox" },
 ];
 
 
@@ -58,6 +66,9 @@ function IconeAba({ tipo, ativo }) {
   );
   if (tipo === "card") return (
     <svg {...common}><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>
+  );
+  if (tipo === "inbox") return (
+    <svg {...common}><path d="M3 12h4l2 3h6l2-3h4" /><path d="M5.5 5h13L21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6L5.5 5z" /></svg>
   );
   return (
     <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -905,9 +916,166 @@ function ModalEntrada({ inicial, onFechar, onSalvar }) {
 
 /* ---------------- lançamento rápido (IA) ---------------- */
 
+/* ---------------- tela: Comprovantes (Caixa de Entrada) ---------------- */
+
+function ThumbComprovante({ item }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (!item.blob) return;
+    const u = URL.createObjectURL(item.blob);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+  const isPdf = (item.tipo || "").includes("pdf");
+  if (isPdf) {
+    return (
+      <div className="w-14 h-14 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0 text-[10px] text-neutral-300 font-medium">
+        PDF
+      </div>
+    );
+  }
+  return (
+    <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/10 bg-white/5 shrink-0">
+      {url && <img src={url} alt="" className="w-full h-full object-cover" />}
+    </div>
+  );
+}
+
+function Comprovantes({ aoRevisar, notificar }) {
+  const [itens, setItens] = useState(null);
+  const [analisando, setAnalisando] = useState(null); // id em analise
+
+  const recarregar = async () => {
+    try {
+      const lista = await listarComprovantes();
+      setItens(lista);
+    } catch (e) {
+      setItens([]);
+    }
+  };
+
+  useEffect(() => { recarregar(); }, []);
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await adicionarComprovante(file, file.name);
+    recarregar();
+  };
+
+  const analisarIA = async (item) => {
+    setAnalisando(item.id);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", item.blob, item.nome || "comprovante");
+      const resp = await fetch("/api/ler-comprovante", { method: "POST", body: fd });
+      if (!resp.ok) {
+        const msg = await resp.text().catch(() => "");
+        throw new Error(msg || `Falha (${resp.status})`);
+      }
+      const dados = await resp.json();
+      const texto = String(dados.texto || "").trim();
+      if (!texto) throw new Error("IA nao retornou leitura.");
+      await atualizarComprovante(item.id, { status: "analisado", textoIA: texto, erroIA: null });
+      notificar?.("Comprovante analisado.");
+    } catch (e) {
+      await atualizarComprovante(item.id, {
+        erroIA: "Leitura por IA indisponivel. Verifique se a chave de API foi configurada no Vercel.",
+      });
+      notificar?.("Nao foi possivel analisar com IA.");
+    } finally {
+      setAnalisando(null);
+      recarregar();
+    }
+  };
+
+  const excluir = async (item) => {
+    if (!confirm("Excluir este comprovante?")) return;
+    await removerComprovante(item.id);
+    recarregar();
+  };
+
+  const limparLancados = async () => {
+    const n = await removerLancados();
+    if (n) notificar?.(`${n} comprovante(s) removido(s).`);
+    recarregar();
+  };
+
+  if (itens === null) return <Vazio texto="Carregando..." />;
+
+  const pendentes = itens.filter((i) => i.status !== "lancado");
+  const lancados = itens.filter((i) => i.status === "lancado");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Caixa de entrada</h2>
+          <p className="text-sm text-neutral-400">Comprovantes guardados para lancar depois</p>
+        </div>
+        <label className={btn + " cursor-pointer"}>
+          + Comprovante
+          <input type="file" accept="image/*,application/pdf,.pdf" className="hidden" onChange={onFile} />
+        </label>
+      </div>
+
+      {!pendentes.length ? (
+        <Vazio texto="Nada por aqui. Envie um print, foto ou PDF do comprovante." />
+      ) : (
+        <div className={glass + " divide-y divide-white/10 overflow-hidden"}>
+          {pendentes.map((item) => (
+            <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+              <ThumbComprovante item={item} />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-neutral-100 truncate">{item.nome}</div>
+                <div className="text-[11px] text-neutral-500">
+                  {new Date(item.criadoEm).toLocaleDateString("pt-BR")}
+                  {item.status === "analisado" ? " · lido pela IA" : ""}
+                  {item.erroIA ? " · erro na IA" : ""}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5 shrink-0 items-end">
+                <button
+                  type="button"
+                  className={btnSec + " text-xs px-3 py-1.5"}
+                  disabled={analisando === item.id}
+                  onClick={() => analisarIA(item)}
+                >
+                  {analisando === item.id ? "Analisando..." : item.status === "analisado" ? "Analisar de novo" : "Analisar com IA"}
+                </button>
+                <div className="flex gap-1.5">
+                  <button type="button" className={btn + " text-xs px-3 py-1.5"} onClick={() => aoRevisar(item)}>
+                    Revisar
+                  </button>
+                  <button type="button" className="text-neutral-500 hover:text-red-400 text-xs px-2" onClick={() => excluir(item)}>
+                    {"\u00d7"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lancados.length > 0 && (
+        <div className="bg-neutral-900/50 backdrop-blur-xl border border-white/10 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+          <div className="text-sm text-neutral-300">{lancados.length} ja lancado(s)</div>
+          <button className={btnSec} onClick={limparLancados}>Limpar</button>
+        </div>
+      )}
+
+      <p className="text-xs text-neutral-600">
+        Comprovantes ficam guardados neste aparelho ate voce lancar ou excluir. A leitura por IA depende de uma chave de API configurada no servidor.
+      </p>
+    </div>
+  );
+}
+
 // parseQuickAdd importado de ./ocrHelpers (sem fetch)
 
-function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, notificar, arquivoInicial, textoInicial }) {
+function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compras, setCompras, onFechar, onLancado, notificar, arquivoInicial, textoInicial }) {
   const [texto, setTexto] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [ocrProgresso, setOcrProgresso] = useState(null);
@@ -1154,6 +1322,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       }]);
       notificar("Gasto adicionado.");
     }
+    onLancado?.();
     onFechar();
   };
 
@@ -1212,6 +1381,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
     if (nC) setCompras(novasCompras);
     if (nG) setGastos(novosGastos);
     notificar(`${nC + nG} lancamento(s) adicionados.`);
+    onLancado?.();
     onFechar();
   };
 
@@ -1576,6 +1746,7 @@ export default function App() {
   const [aviso, setAviso] = useState("");
   const [arquivoShare, setArquivoShare] = useState(null);
   const [textoShare, setTextoShare] = useState(null);
+  const [comprovanteAtivoId, setComprovanteAtivoId] = useState(null);
   const [perfil, setPerfil] = useSalvo("mc_perfil", { nome: "BANKAI", foto: "" });
   const [editPerfil, setEditPerfil] = useState(false);
   const fotoInputRef = useRef(null);
@@ -1591,6 +1762,15 @@ export default function App() {
     setRapido(false);
     setArquivoShare(null);
     setTextoShare(null);
+    setComprovanteAtivoId(null);
+  };
+
+  const abrirComprovanteNoRapido = (item) => {
+    setArquivoShare({ kind: "file", file: item.blob, textHint: item.textoIA || undefined });
+    setTextoShare(null);
+    setComprovanteAtivoId(item.id);
+    rapidoLock.current = Date.now();
+    setRapido(true);
   };
 
   const notificar = (msg) => {
@@ -1712,6 +1892,7 @@ export default function App() {
         {aba === "gastos" && <Gastos gastos={gastos} setGastos={setGastos} />}
         {aba === "cartoes" && <Cartoes cartoes={cartoes} setCartoes={setCartoes} compras={compras} setCompras={setCompras} />}
         {aba === "monitoramento" && <Monitoramento gastos={gastos} compras={compras} />}
+        {aba === "comprovantes" && <Comprovantes aoRevisar={abrirComprovanteNoRapido} notificar={notificar} />}
       </div>
 
       <FabBotao videoSrc={fabVideo} onClick={abrirRapido} />
@@ -1729,6 +1910,7 @@ export default function App() {
           gastos={gastos} setGastos={setGastos}
           cartoes={cartoes} compras={compras} setCompras={setCompras}
           onFechar={fecharRapido}
+          onLancado={comprovanteAtivoId ? () => atualizarComprovante(comprovanteAtivoId, { status: "lancado" }) : undefined}
           notificar={notificar}
           arquivoInicial={arquivoShare}
           textoInicial={textoShare}
