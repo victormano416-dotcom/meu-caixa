@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
 import { consumirCompartilhamento } from "./shareQueue";
-import {
-  adicionarComprovante,
+import {  adicionarComprovante,
   listarComprovantes,
   atualizarComprovante,
   removerComprovante,
