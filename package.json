@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "predev": "node scripts/restore-app.js",
-    "build": "node scripts/restore-app.js && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
