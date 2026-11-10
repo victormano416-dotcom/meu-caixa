@@ -455,21 +455,6 @@ export default function AuthCloudGate({ children }) {
     );
   }
 
-  return (
-    <>
-      <div className="relative z-50 mx-auto flex max-w-2xl items-center justify-between gap-3 border-b border-white/10 bg-neutral-950 px-4 py-2 text-xs text-neutral-400">
-        <span className="min-w-0 truncate">{session.user.email}</span>
-        <span className="shrink-0" role="status">
-          {syncStatus}
-        </span>
-        <button
-          className="shrink-0 text-neutral-300 hover:text-white"
-          onClick={() => client.auth.signOut()}
-        >
-          Sair
-        </button>
-      </div>
-      {children}
-    </>
-  );
+  // Barra de e-mail/sincronizado oculta — sessão e sync continuam em segundo plano.
+  return children;
 }
