@@ -78,24 +78,33 @@ function LoginScreen({ client }) {
             <input className={`${inputClass} mt-1.5`} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={6} required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo de 6 caracteres" />
           </label>
           {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
-          {message && <p role="status" className="text-sm text-emerald-300">{message}</p>}
-          <button className={`${primaryButton} !mt-5`} type="submit" disabled={busy}>{busy ? "Aguarde…" : mode === "login" ? "Entrar" : "Criar conta"}</button>
+          {message && <p className="text-sm text-emerald-300">{message}</p>}
+          <button className={primaryButton} disabled={busy} type="submit">{busy ? "Aguarde…" : mode === "login" ? "Entrar" : "Criar conta"}</button>
         </form>
-        <button className="mt-4 w-full text-sm text-neutral-400 hover:text-white" type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); setError(""); }}>
-          {mode === "login" ? "Ainda não tem conta? Criar conta" : "Já tem uma conta? Entrar"}
+        <button type="button" className="mt-4 w-full text-center text-xs text-neutral-400 hover:text-white" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setMessage(""); }}>
+          {mode === "login" ? "Não tem conta? Criar agora" : "Já tem conta? Entrar"}
         </button>
-        <p className="mt-6 text-center text-[11px] leading-5 text-neutral-600">Seus lançamentos e perfil serão separados por conta e sincronizados na nuvem.</p>
       </section>
     </main>
   );
 }
 
-function CloudSetupMessage() {
+function CloudSetupMessage({ onContinueLocal }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-950 px-5 text-neutral-100">
       <section className="max-w-lg rounded-3xl border border-white/10 bg-neutral-900 p-6">
-        <h1 className="text-xl font-semibold">Configure o Supabase</h1>
-        <p className="mt-3 text-sm leading-6 text-neutral-400">Para ativar login e sincronização, configure <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> nas variáveis de ambiente do projeto e crie a tabela indicada no README.</p>
+        <h1 className="text-xl font-semibold">Nuvem ainda não configurada</h1>
+        <p className="mt-3 text-sm leading-6 text-neutral-400">
+          O deploy saiu sem <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code>.
+          Na Vercel: projeto <strong>meu-caixa</strong> → Settings → Environment Variables → adicione as duas
+          (iguais às do BANKAI) em Production → Redeploy.
+        </p>
+        <p className="mt-3 text-xs leading-5 text-neutral-500">
+          URL estável do app: <a className="underline" href="https://meu-caixa-jade.vercel.app">meu-caixa-jade.vercel.app</a>
+        </p>
+        <button type="button" className={`${primaryButton} mt-5`} onClick={onContinueLocal}>
+          Continuar só neste aparelho
+        </button>
       </section>
     </main>
   );
@@ -165,6 +174,13 @@ export default function AuthCloudGate({ children }) {
   const [needsImportChoice, setNeedsImportChoice] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [syncStatus, setSyncStatus] = useState("Carregando conta…");
+  const [forceLocal, setForceLocal] = useState(() => {
+    try {
+      return localStorage.getItem("mc_force_local") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     if (!client) {
@@ -198,17 +214,21 @@ export default function AuthCloudGate({ children }) {
     client.from("user_data").select("data").eq("user_id", session.user.id).maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (error) throw error;
-        if (data) {
-          applyLocalData(data.data || {});
-          setCloudData(data.data || EMPTY_DATA);
-          setSyncStatus("Sincronizado");
-        } else {
-          setNeedsImportChoice(true);
+        if (error) {
+          setSetupError(error.message);
+          setCloudLoading(false);
+          return;
         }
-      })
-      .catch((error) => { if (!cancelled) setSetupError(error.message || "Falha ao carregar seus dados."); })
-      .finally(() => { if (!cancelled) setCloudLoading(false); });
+        if (!data) {
+          setNeedsImportChoice(true);
+          setCloudLoading(false);
+          return;
+        }
+        applyLocalData(data.data || EMPTY_DATA);
+        setCloudData(data.data || EMPTY_DATA);
+        setCloudLoading(false);
+        setSyncStatus("Sincronizado");
+      });
     return () => { cancelled = true; };
   }, [client, session?.user?.id]);
 
@@ -217,25 +237,48 @@ export default function AuthCloudGate({ children }) {
     setCloudLoading(true);
     setSetupError("");
     try {
+      applyLocalData(data);
       const { error } = await client.from("user_data").upsert(
         { user_id: session.user.id, data, updated_at: new Date().toISOString() },
         { onConflict: "user_id" },
       );
       if (error) throw error;
-      applyLocalData(data);
       setCloudData(data);
       setNeedsImportChoice(false);
       setSyncStatus("Sincronizado");
     } catch (error) {
-      setSetupError(error.message || "Não foi possível iniciar o armazenamento na nuvem.");
+      setSetupError(error.message || "Falha ao preparar a nuvem.");
     } finally {
       setCloudLoading(false);
     }
   }, [client, session?.user?.id]);
 
-  useCloudSync(client, session?.user?.id, !!cloudData && !needsImportChoice, setSyncStatus);
+  useCloudSync(client, session?.user?.id, Boolean(client && session && cloudData && !needsImportChoice), setSyncStatus);
 
-  if (!client) return <CloudSetupMessage />;
+  if (!client && !forceLocal) {
+    return (
+      <CloudSetupMessage
+        onContinueLocal={() => {
+          try {
+            localStorage.setItem("mc_force_local", "1");
+          } catch {
+            /* ignore */
+          }
+          setForceLocal(true);
+        }}
+      />
+    );
+  }
+  if (!client && forceLocal) {
+    return (
+      <>
+        <div className="relative z-50 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100">
+          Modo local — sem login na nuvem. Configure o Supabase na Vercel e faça Redeploy para sincronizar.
+        </div>
+        {children}
+      </>
+    );
+  }
   if (authLoading) return <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-sm text-neutral-400">Carregando…</main>;
   if (!session) return <LoginScreen client={client} />;
   if (cloudLoading) return <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-sm text-neutral-400">Carregando seus dados…</main>;
