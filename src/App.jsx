@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
-import { consumirCompartilhamento } from "./shareQueue";
+import { consumirCompartilhamento, onCompartilhamento } from "./shareQueue";
 import {  adicionarComprovante,
   listarComprovantes,
   atualizarComprovante,
@@ -1425,8 +1425,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
           ) : (
             <div className="py-3 space-y-2">
               <p className="text-[11px] text-neutral-500 text-center px-2 leading-relaxed">
-                O Nubank muitas vezes <span className="text-neutral-300">não envia a imagem</span> no compartilhar.
-                Toque em <span className="text-neutral-300">Galeria</span> e escolha o print do comprovante — aí a leitura inicia.
+                Recebendo comprovante do banco… a leitura deve começar sozinha em instantes.
               </p>
               <div className="flex gap-2 justify-center">
                 <label className={btnSec + " cursor-pointer text-xs"}>
@@ -1784,40 +1783,15 @@ export default function App() {
       return true;
     };
 
-    const tentarClipboard = async () => {
-      try {
-        if (!navigator.clipboard || !navigator.clipboard.read) return false;
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          for (const type of item.types) {
-            if (String(type).startsWith("image/")) {
-              const blob = await item.getType(type);
-              if (blob && blob.size > 50) {
-                const file = new File([blob], "clipboard.png", { type: blob.type || "image/png" });
-                return aplicarPayload({ kind: "file", file });
-              }
-            }
-            if (type === "text/plain") {
-              const blob = await item.getType(type);
-              const text = (await blob.text()).trim();
-              if (text.length > 20 && /(r\$|pix|valor|comprovante|pago)/i.test(text)) {
-                return aplicarPayload({ kind: "text", text });
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // permissão negada ou indisponível — ok
-      }
-      return false;
-    };
+    const offShare = onCompartilhamento((payload) => {
+      aplicarPayload(payload);
+    });
 
     const tentarShare = async () => {
       const payload = await consumirCompartilhamento();
       if (cancelled) return false;
       if (payload) return aplicarPayload(payload);
-      // fallback: às vezes o Android deixa a imagem/texto na área de transferência
-      return tentarClipboard();
+      return false;
     };
 
     (async () => {
@@ -1854,6 +1828,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      try { offShare(); } catch {}
       window.removeEventListener("meu-caixa-share-received", onMsg);
     };
   }, []);
