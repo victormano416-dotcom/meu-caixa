@@ -1424,6 +1424,9 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
             </div>
           ) : (
             <div className="py-3 space-y-2">
+              <p className="text-[11px] text-neutral-500 text-center px-2">
+                Se veio do banco e a leitura não começou, toque em <span className="text-neutral-300">Galeria</span> e escolha o print do comprovante.
+              </p>
               <div className="flex gap-2 justify-center">
                 <label className={btnSec + " cursor-pointer text-xs"}>
                   Galeria
