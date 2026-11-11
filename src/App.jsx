@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { parseLocal, ocrImagem, parseQuickAdd } from "./ocrHelpers";
-import { consumirCompartilhamento, onCompartilhamento } from "./shareQueue";
+import { consumirCompartilhamento, onCompartilhamento, confirmarCompartilhamentoConsumido } from "./shareQueue";
 import {  adicionarComprovante,
   listarComprovantes,
   atualizarComprovante,
@@ -1707,6 +1707,7 @@ export default function App() {
   const [rapido, setRapido] = useState(false);
   const [aviso, setAviso] = useState("");
   const [arquivoShare, setArquivoShare] = useState(null);
+  const shareAppliedRef = useRef(false);
   const [textoShare, setTextoShare] = useState(null);
   const [comprovanteAtivoId, setComprovanteAtivoId] = useState(null);
   const [perfil, setPerfil] = useSalvo("mc_perfil", { nome: "BANKAI", foto: "" });
