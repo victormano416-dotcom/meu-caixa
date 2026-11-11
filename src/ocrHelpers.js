@@ -164,10 +164,36 @@ function detectarBanco(low, cartaoTxt) {
 
 function detectarForma(low, funcaoTxt) {
   const t = ((funcaoTxt || "") + " " + low).toLowerCase();
-  if (/\bpix\b/.test(t)) return "pix";
-  if (/d[eé]bito/.test(t)) return "debito";
-  if (/cr[eé]dito|parcela|\d+\s*x/.test(t)) return "credito";
+  // Prioridade: crédito/parcelas antes de PIX (muitos comprovantes de cartão citam "pix" no rodapé)
+  if (
+    /cr[eé]dito|compra no cr[eé]dito|fun[cç][aã]o\s*cr[eé]dito|cart[aã]o de cr[eé]dito/.test(t) ||
+    /\d{1,2}\s*x\b|parcelad|parcela\s*\d+\s*\/\s*\d+/.test(t)
+  ) {
+    return "credito";
+  }
+  if (/d[eé]bito|compra no d[eé]bito|fun[cç][aã]o\s*d[eé]bito/.test(t)) return "debito";
+  if (/\bpix\b|transfer[eê]ncia\s*pix|pix\s*enviad|pix\s*recebid/.test(t)) return "pix";
   if (/dinheiro|esp[eé]cie/.test(t)) return "dinheiro";
+  return null;
+}
+
+/** PIX recebido = entrada; PIX enviado/pago = gasto */
+function detectarDirecaoPix(low) {
+  const t = String(low || "").toLowerCase();
+  if (
+    /pix\s*recebid|recebido\s*via\s*pix|voc[eê]\s*recebeu|entrada\s*via\s*pix|recebimento/.test(t) ||
+    /transfer[eê]ncia\s*recebid|valor\s*recebido/.test(t)
+  ) {
+    return "entrada";
+  }
+  if (
+    /pix\s*enviad|enviado\s*via\s*pix|voc[eê]\s*enviou|pagamento\s*via\s*pix|pagou\s*com\s*pix/.test(t) ||
+    /transfer[eê]ncia\s*enviad|valor\s*enviado|comprovante\s*de\s*pagamento/.test(t)
+  ) {
+    return "gasto";
+  }
+  // Nubank: "Para" costuma ser envio; "De" sozinho e ambíguo
+  if (/\bpara\b/.test(t) && /\bpix\b/.test(t) && !/recebid/.test(t)) return "gasto";
   return null;
 }
 
@@ -191,10 +217,13 @@ function parseTextoLivre(limpo, low) {
   const data = extrairData(limpo);
   const descricao = extrairDescricao(limpo, null);
   const banco = detectarBanco(low, null);
-  const isCartao = !!(banco || (parcInfo && parcelas > 1) || /cart[aã]o|cr[eé]dito|\d+\s*x/i.test(low));
+  const formaLivre = detectarForma(low, null);
+  const isCartao = formaLivre === "credito" || !!(parcInfo && parcelas > 1) || /cart[aã]o|cr[eé]dito|\d+\s*x/i.test(low);
+  const dirPix = (formaLivre === "pix" || /\bpix\b/i.test(low)) ? detectarDirecaoPix(low) : null;
+  const tipoLivre = isCartao ? "compraCartao" : (dirPix === "entrada" ? "entrada" : "gasto");
   return [{
-    tipo: isCartao ? "compraCartao" : "gasto",
-    forma: isCartao ? "credito" : (/pix/i.test(low) ? "pix" : "debito"),
+    tipo: tipoLivre,
+    forma: isCartao ? "credito" : (formaLivre || (/\bpix\b/i.test(low) ? "pix" : "debito")),
     descricao,
     valor: parcelas > 1 && parcInfo && parcInfo.valorParcela ? parcInfo.valorParcela : v.valor,
     valorTotal: parcelas > 1
@@ -390,26 +419,45 @@ export function parseLocal(texto) {
     !!(parcInfo && parcelas > 1) ||
     /cart[aã]o|visa|master|cr[eé]dito/i.test(low + " " + (funcaoTxt || ""));
 
-  const tipo =
-    forma === "pix" || forma === "debito" || forma === "dinheiro"
-      ? "gasto"
-      : isCartao
-        ? "compraCartao"
-        : "gasto";
+  const dirPix = forma === "pix" ? detectarDirecaoPix(low) : null;
+
+  let tipo;
+  if (isCartao || forma === "credito") {
+    tipo = "compraCartao";
+  } else if (forma === "pix" && dirPix === "entrada") {
+    tipo = "entrada";
+  } else if (forma === "pix" || forma === "debito" || forma === "dinheiro") {
+    tipo = "gasto";
+  } else if (dirPix === "entrada") {
+    tipo = "entrada";
+  } else {
+    tipo = "gasto";
+  }
+
+  // Descricao mais util para PIX
+  let descFinal = descricao;
+  if (forma === "pix") {
+    const para = campo(limpo, ["Para", "Destino", "Nome"]);
+    const de = campo(limpo, ["De", "Origem", "Remetente"]);
+    if (tipo === "entrada" && de) descFinal = "PIX de " + de;
+    else if (tipo === "gasto" && para) descFinal = "PIX para " + para;
+    else if (!descFinal || descFinal.length < 3) descFinal = tipo === "entrada" ? "PIX recebido" : "PIX enviado";
+  }
 
   const finalMatch = (cartaoTxt || "").match(/final\s*(\d{4})/i);
+  const formaFinal = forma || (tipo === "compraCartao" ? "credito" : tipo === "entrada" ? "pix" : "debito");
 
   return [{
     tipo,
-    forma: forma || (tipo === "compraCartao" ? "credito" : "debito"),
-    descricao,
+    forma: formaFinal,
+    descricao: descFinal,
     valor: valorParcela || valorTotal,
     valorTotal: valorTotal || valorParcela,
-    categoria,
+    categoria: tipo === "entrada" ? "Outros" : categorizar(descFinal, low),
     tipoGasto: "Variavel",
     recorrente: false,
     dia: data ? data.dia : null,
-    parcelas: tipo === "compraCartao" ? parcelas : 1,
+    parcelas: tipo === "compraCartao" ? Math.max(1, parcelas) : 1,
     banco,
     cartaoFinal: finalMatch ? finalMatch[1] : null,
     ano: data ? data.ano : null,
