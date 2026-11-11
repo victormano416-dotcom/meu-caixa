@@ -1091,6 +1091,7 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
   const processarImagem = async (fileOrBlob, textHint) => {
     if (!fileOrBlob) return;
     setErro("");
+    setCarregando(true);
     setOcrProgresso(0);
     setRascunho(null);
     const type = (fileOrBlob.type || "").toLowerCase();
@@ -1099,7 +1100,6 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
 
     try {
       if (isPdf) {
-        // PDF: OCR de imagem nao aplica; usa texto junto no share, se houver
         setPreview(null);
         setOcrProgresso(null);
         if (textHint && String(textHint).trim().length > 3) {
@@ -1133,12 +1133,22 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
       }
       setErro(e.message || "Falha no OCR");
       setOcrProgresso(null);
+    } finally {
+      setCarregando(false);
     }
   };
 
   useEffect(() => {
-    if (arquivoInicial) processarImagem(arquivoInicial.file || arquivoInicial, arquivoInicial.textHint);
-    else if (textoInicial) processarTexto(textoInicial);
+    let cancelled = false;
+    (async () => {
+      if (arquivoInicial) {
+        const f = arquivoInicial.file || arquivoInicial;
+        if (!cancelled) await processarImagem(f, arquivoInicial.textHint);
+      } else if (textoInicial) {
+        if (!cancelled) await processarTexto(textoInicial);
+      }
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arquivoInicial, textoInicial]);
 
@@ -1739,13 +1749,27 @@ export default function App() {
       window.history.replaceState({}, "", u.pathname + u.search);
     };
 
-    const aplicarPayload = (payload) => {
+    const normalizarArquivo = async (maybeFile) => {
+      if (!maybeFile) return null;
+      if (typeof maybeFile.getFile === "function") {
+        try {
+          return await maybeFile.getFile();
+        } catch {
+          return null;
+        }
+      }
+      return maybeFile;
+    };
+
+    const aplicarPayload = async (payload) => {
       if (!payload) return false;
       if (payload.kind === "text") {
         setTextoShare(payload.text);
         setArquivoShare(null);
       } else if (payload.kind === "file") {
-        setArquivoShare(payload);
+        const file = await normalizarArquivo(payload.file || payload);
+        if (!file) return false;
+        setArquivoShare({ kind: "file", file, textHint: payload.textHint });
         setTextoShare(null);
       } else {
         return false;
@@ -1764,23 +1788,27 @@ export default function App() {
 
     (async () => {
       const qs = new URLSearchParams(window.location.search);
-      if (qs.get("share") === "1") {
+      // Abre o modal já em modo "recebendo" e só preenche quando o arquivo chegar
+      if (qs.get("share") === "1" || qs.get("shareError") === "1") {
         rapidoLock.current = Date.now();
         setRapido(true);
       }
-      await tentarShare();
+      const ok = await tentarShare();
+      if (!ok && qs.get("shareError") === "1") {
+        notificar("Não recebi o arquivo do compartilhamento. Tente print (imagem).");
+      }
     })();
 
     const onMsg = () => { tentarShare(); };
     window.addEventListener("meu-caixa-share-received", onMsg);
 
-    // File Handling / "Abrir com" (quando o browser suportar)
     try {
       if ("launchQueue" in window && window.launchQueue && typeof window.launchQueue.setConsumer === "function") {
         window.launchQueue.setConsumer(async (params) => {
           const files = params.files || [];
           if (!files.length || cancelled) return;
-          aplicarPayload({ kind: "file", file: files[0] });
+          const file = await normalizarArquivo(files[0]);
+          if (file) await aplicarPayload({ kind: "file", file });
         });
       }
     } catch (e) {}
