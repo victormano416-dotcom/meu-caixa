@@ -1424,8 +1424,9 @@ function ModalRapido({ entradas, setEntradas, gastos, setGastos, cartoes, compra
             </div>
           ) : (
             <div className="py-3 space-y-2">
-              <p className="text-[11px] text-neutral-500 text-center px-2">
-                Se veio do banco e a leitura não começou, toque em <span className="text-neutral-300">Galeria</span> e escolha o print do comprovante.
+              <p className="text-[11px] text-neutral-500 text-center px-2 leading-relaxed">
+                O Nubank muitas vezes <span className="text-neutral-300">não envia a imagem</span> no compartilhar.
+                Toque em <span className="text-neutral-300">Galeria</span> e escolha o print do comprovante — aí a leitura inicia.
               </p>
               <div className="flex gap-2 justify-center">
                 <label className={btnSec + " cursor-pointer text-xs"}>
@@ -1783,22 +1784,57 @@ export default function App() {
       return true;
     };
 
+    const tentarClipboard = async () => {
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.read) return false;
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          for (const type of item.types) {
+            if (String(type).startsWith("image/")) {
+              const blob = await item.getType(type);
+              if (blob && blob.size > 50) {
+                const file = new File([blob], "clipboard.png", { type: blob.type || "image/png" });
+                return aplicarPayload({ kind: "file", file });
+              }
+            }
+            if (type === "text/plain") {
+              const blob = await item.getType(type);
+              const text = (await blob.text()).trim();
+              if (text.length > 20 && /(r\$|pix|valor|comprovante|pago)/i.test(text)) {
+                return aplicarPayload({ kind: "text", text });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // permissão negada ou indisponível — ok
+      }
+      return false;
+    };
+
     const tentarShare = async () => {
       const payload = await consumirCompartilhamento();
-      if (cancelled || !payload) return false;
-      return aplicarPayload(payload);
+      if (cancelled) return false;
+      if (payload) return aplicarPayload(payload);
+      // fallback: às vezes o Android deixa a imagem/texto na área de transferência
+      return tentarClipboard();
     };
 
     (async () => {
       const qs = new URLSearchParams(window.location.search);
-      // Abre o modal já em modo "recebendo" e só preenche quando o arquivo chegar
       if (qs.get("share") === "1" || qs.get("shareError") === "1") {
         rapidoLock.current = Date.now();
         setRapido(true);
       }
       const ok = await tentarShare();
-      if (!ok && qs.get("shareError") === "1") {
-        notificar("Não recebi o arquivo do compartilhamento. Tente print (imagem).");
+      if (!ok && (qs.get("share") === "1" || qs.get("shareError") === "1")) {
+        // segunda tentativa após 1s (SW lento)
+        await new Promise((r) => setTimeout(r, 1000));
+        if (cancelled) return;
+        const ok2 = await tentarShare();
+        if (!ok2) {
+          notificar("Não recebi a imagem do banco. Use Galeria e escolha o print.");
+        }
       }
     })();
 
