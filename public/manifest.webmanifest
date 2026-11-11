@@ -42,15 +42,7 @@
       "files": [
         {
           "name": "images",
-          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "*/*"]
-        },
-        {
-          "name": "file",
-          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "*/*"]
-        },
-        {
-          "name": "media",
-          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "*/*"]
+          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf"]
         }
       ]
     }
