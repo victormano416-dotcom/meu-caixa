@@ -1,394 +1,382 @@
-/** Parser local + OCR — comprovantes estruturados (BB, Nubank, etc.) */
+/**
+ * Parser universal de comprovantes brasileiros (PIX, TED, cartão, boleto).
+ * Base: campos padronizados do PIX (BCB) + labels comuns dos apps
+ * (Nubank, Inter, BB, Caixa, Itaú, Bradesco, Santander, C6, PicPay,
+ * Mercado Pago, PagBank, Neon, Original, Next, Will, etc.).
+ */
 
 function limparOcr(texto) {
   return String(texto || "")
-    .replace(/\u0000/g, "")
-    .replace(/[|]/g, " ")
-    // OCR confunde O/I/l com 0/1 perto de numeros
-    .replace(/(\d)[Oo](\d)/g, "$10$2")
-    .replace(/(\d)[Oo]\b/g, "$10")
-    .replace(/\b[Oo](\d)/g, "0$1")
-    .replace(/(\d)[Il](\d)/g, "$11$2")
-    // sinal de multiplicacao unicode
-    .replace(/[×✕✖]/g, "x")
-    .replace(/R\s*\$\s*/gi, "R$ ")
-    .replace(/[^\S\n]+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/[|]/g, "I")
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
 function paraNumero(raw) {
-  if (raw == null) return null;
+  if (raw == null) return 0;
   let s = String(raw).trim();
-  s = s.replace(/r\$\s*/i, "").trim();
-  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
-  else if (s.includes(",")) s = s.replace(",", ".");
-  const v = parseFloat(s);
-  return v > 0 && v < 1000000 ? v : null;
+  if (!s) return 0;
+  s = s.replace(/[^\d.,]/g, "");
+  if (s.includes(",") && s.includes(".")) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (s.includes(",")) {
+    s = s.replace(",", ".");
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function campo(texto, nomes) {
-  const lines = texto.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const low = line.toLowerCase();
-    for (const nome of nomes) {
-      const re = new RegExp("^" + nome.replace(/\s+/g, "\\s*") + "\\s*[:\\-]?\\s*(.*)$", "i");
-      const m = line.match(re);
-      if (m) {
-        const rest = (m[1] || "").trim();
-        if (rest) return rest;
-        if (i + 1 < lines.length) return lines[i + 1];
-      }
-      if (low === nome.toLowerCase() || low === nome.toLowerCase() + ":") {
-        if (i + 1 < lines.length) return lines[i + 1];
-      }
-    }
-  }
+  const lines = String(texto).split(/\n+/);
   for (const nome of nomes) {
-    const re = new RegExp(nome + "\\s*[:\\-]?\\s*([^\\n]+)", "i");
-    const m = texto.match(re);
-    if (m && m[1].trim()) return m[1].trim();
+    const reLinha = new RegExp(
+      "^\\s*" + nome + "\\s*[:\\-–]?\\s*(.+)$",
+      "i"
+    );
+    for (const line of lines) {
+      const m = line.match(reLinha);
+      if (m && m[1] && m[1].trim().length > 1) return m[1].trim();
+    }
+    const reInline = new RegExp(
+      nome + "\\s*[:\\-–]\\s*([^\\n]+)",
+      "i"
+    );
+    const m2 = String(texto).match(reInline);
+    if (m2 && m2[1] && m2[1].trim().length > 1) return m2[1].trim();
   }
   return null;
 }
 
 function extrairData(texto) {
-  const m = String(texto || "").match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-  if (!m) return null;
-  let dia = parseInt(m[1], 10);
-  let mes = parseInt(m[2], 10) - 1;
-  let ano = parseInt(m[3], 10);
-  if (ano < 100) ano += 2000;
-  if (mes < 0 || mes > 11 || dia < 1 || dia > 31) return null;
-  return { dia, mes, ano };
+  const t = String(texto);
+  let m = t.match(
+    /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/
+  );
+  if (m) {
+    let dia = parseInt(m[1], 10);
+    let mes = parseInt(m[2], 10) - 1;
+    let ano = parseInt(m[3], 10);
+    if (ano < 100) ano += 2000;
+    if (dia >= 1 && dia <= 31 && mes >= 0 && mes <= 11) {
+      return { dia, mes, ano };
+    }
+  }
+  m = t.match(
+    /(\d{1,2})\s+de\s+(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\s+(?:de\s+)?(\d{4})/i
+  );
+  if (m) {
+    const meses = {
+      jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
+      jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11,
+    };
+    const mes = meses[m[2].toLowerCase().slice(0, 3)];
+    return { dia: parseInt(m[1], 10), mes, ano: parseInt(m[3], 10) };
+  }
+  return null;
 }
 
 function extrairParcelas(texto) {
-  // normaliza quebras: "10 x de R$\n394,00" -> mesma linha
-  const raw = String(texto || "");
-  const one = raw.replace(/[\r\n]+/g, " ");
-  const low = one.toLowerCase();
-
-  // 1) Prioridade: "10 x de R$ 394,00" / "10x de 394,00"
-  let m =
-    low.match(/(\d{1,2})\s*x\s*de\s*r\$?\s*([\d.,]+)/i) ||
-    low.match(/(\d{1,2})\s*x\s*de\s*([\d.,]+)/i);
+  const low = String(texto).toLowerCase();
+  let m = low.match(/\b(\d{1,2})\s*\/\s*(\d{1,2})\b/);
   if (m) {
-    const total = parseInt(m[1], 10);
-    const valorParcela = paraNumero(m[2]);
-    if (total >= 2 && total <= 48) return { total, valorParcela, fonte: "nx" };
+    const atual = parseInt(m[1], 10);
+    const total = parseInt(m[2], 10);
+    if (total >= 2 && total <= 48 && atual >= 1 && atual <= total) {
+      return { atual, total, fonte: "fracao" };
+    }
   }
-
-  // 2) "em 10x" / "parcelado em 10 x"
   m = low.match(/(?:em|parcelad[oa]s?\s+em)\s*(\d{1,2})\s*x\b/);
   if (m) {
     const total = parseInt(m[1], 10);
-    if (total >= 2 && total <= 48) return { total, valorParcela: null, fonte: "nx" };
+    if (total >= 2 && total <= 48) return { atual: 1, total, fonte: "em_nx" };
   }
-
-  // 3) "Parcelas: 10" isolado (rotulo do comprovante)
+  m = low.match(/\b(\d{1,2})\s*x\b(?:\s+de\s+r\$)?/);
+  if (m) {
+    const total = parseInt(m[1], 10);
+    if (total >= 2 && total <= 48) return { atual: 1, total, fonte: "nx" };
+  }
   m = low.match(/\bparcelas?\s*[:\-]?\s*(\d{1,2})\b/);
   if (m) {
     const total = parseInt(m[1], 10);
-    if (total >= 2 && total <= 48) return { total, valorParcela: null, fonte: "nx" };
+    if (total >= 2 && total <= 48) return { atual: 1, total, fonte: "label" };
   }
-
-  // 4) "10 x" generico
-  m = low.match(/\b(\d{1,2})\s*x\b/);
-  if (m) {
-    const total = parseInt(m[1], 10);
-    if (total >= 2 && total <= 48) return { total, valorParcela: null, fonte: "nx" };
-  }
-
-  // 5) "Parc 01/10" — denominador e o total; valor do comprovante costuma ser a parcela
-  m = low.match(/parc\.?\s*(\d{1,2})\s*[\/|]\s*(\d{1,2})/);
-  if (m) {
-    const atual = parseInt(m[1], 10);
-    const total = parseInt(m[2], 10);
-    if (total >= 2 && total <= 48) return { atual, total, valorParcela: null, fonte: "fracao" };
-  }
-
-  // 6) "3 de 10"
-  m = low.match(/\b(\d{1,2})\s*de\s*(\d{1,2})\b/);
-  if (m) {
-    const atual = parseInt(m[1], 10);
-    const total = parseInt(m[2], 10);
-    if (total >= 2 && total <= 48 && atual <= total) return { atual, total, valorParcela: null, fonte: "fracao" };
-  }
-
   return null;
 }
 
 function extrairDescricao(texto, estabelecimento) {
-  if (estabelecimento) {
-    let d = estabelecimento
-      .replace(/parc\.?\s*\d+\s*\/\s*\d+/i, "")
-      .replace(/\*/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (/mercado\s*liv|mercadoliv/i.test(d)) return "Mercado Livre";
-    if (/shein/i.test(d)) return "Shein";
-    if (/shopee/i.test(d)) return "Shopee";
-    if (d.length >= 2) return d.slice(0, 40);
+  if (estabelecimento && estabelecimento.length > 2) return estabelecimento.slice(0, 80);
+  const lines = String(texto)
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 2 && l.length < 60);
+  const skip =
+    /^(valor|data|hora|pix|comprovante|banco|ag[eê]ncia|conta|cpf|cnpj|id\b|e2e|autentica|total|pago|status)/i;
+  for (const l of lines) {
+    if (skip.test(l)) continue;
+    if (/^r\$\s*\d/i.test(l)) continue;
+    if (/^\d{1,2}[\/\-.]\d{1,2}/.test(l)) continue;
+    return l.slice(0, 80);
   }
-  if (/mercado\s*livre|mercadoliv|mp\s*\*?\s*mercado/i.test(texto)) return "Mercado Livre";
-  if (/shein/i.test(texto)) return "Shein";
-  if (/shopee/i.test(texto)) return "Shopee";
-  if (/ifood/i.test(texto)) return "iFood";
-  if (/\buber\b/i.test(texto)) return "Uber";
-  return "Compra";
+  return "Lançamento";
 }
 
 function categorizar(desc, low) {
   const t = (low + " " + desc).toLowerCase();
-  if (/uber|99\b|transporte|gasolina/i.test(t)) return "Transporte";
-  if (/ifood|rappi|lanche|restaurante|supermercado|aliment/i.test(t) && !/mercado\s*liv/i.test(t)) return "Alimentação";
-  if (/farm|remedio|remédio|saude|saúde|drogaria/i.test(t)) return "Saúde";
-  if (/cinema|netflix|spotify|lazer|academia/i.test(t)) return "Lazer";
-  if (/shein|shopee|amazon|magazine|magalu|mercado\s*liv|mercadoliv|compra|renner/i.test(t)) return "Compras";
-  if (/casa|aluguel|luz|agua|água|internet/i.test(t)) return "Casa";
+  if (/uber|99\b|transporte|gasolina|posto|shell|ipiranga|combust/i.test(t)) return "Transporte";
+  if (/ifood|rappi|lanche|restaurante|supermercado|mercado|aliment|padaria|acai|açaí/i.test(t) && !/mercado\s*liv/i.test(t))
+    return "Alimentação";
+  if (/farm|rem[eé]dio|sa[uú]de|drogaria|hospital|dentista|m[eé]dic/i.test(t)) return "Saúde";
+  if (/cinema|netflix|spotify|lazer|academia|steam|playstation|xbox/i.test(t)) return "Lazer";
+  if (/shein|shopee|amazon|magazine|magalu|mercado\s*liv|mercadoliv|renner|zara|americanas|compra/i.test(t))
+    return "Compras";
+  if (/casa|aluguel|luz|energia|água|agua|internet|vivo|claro|tim|oi\b|condom/i.test(t)) return "Casa";
+  if (/escola|faculdade|curso|udemy|estudo|livro/i.test(t)) return "Estudos";
   return "Outros";
 }
 
+/** Bancos e carteiras mais usados no Brasil (rótulos que aparecem no OCR). */
 function detectarBanco(low, cartaoTxt) {
-  const c = (cartaoTxt || "") + " " + low;
-  if (/banco do brasil|fac[ií]l|\bbb\b/i.test(c)) return "BB";
-  if (/nubank|nu\s*pagamentos/i.test(c)) return "NU";
-  if (/\binter\b/i.test(c)) return "Inter";
-  if (/\bc6\b/i.test(c)) return "C6";
-  if (/ita[uú]/i.test(c)) return "Itau";
-  if (/bradesco/i.test(c)) return "Bradesco";
+  const c = ((cartaoTxt || "") + " " + low).toLowerCase();
+  const regras = [
+    [/nubank|nu\s*pagamentos|\bnu\b.*roxo|roxinho/i, "NU"],
+    [/banco do brasil|\bbb\b|fac[ií]l\s*bb|bb\s*digital/i, "BB"],
+    [/\binter\b|banco inter/i, "Inter"],
+    [/\bc6\b|c6\s*bank/i, "C6"],
+    [/ita[uú]|itau\s*unibanco/i, "Itau"],
+    [/bradesco/i, "Bradesco"],
+    [/santander/i, "Santander"],
+    [/caixa\s*econ[oô]mica|\bcef\b|caixa\s*tem/i, "Caixa"],
+    [/mercado\s*pago|mercadopago/i, "MercadoPago"],
+    [/picpay|pic\s*pay/i, "PicPay"],
+    [/pag(bank|seguro)|pagseguro/i, "PagBank"],
+    [/\bneon\b/i, "Neon"],
+    [/original/i, "Original"],
+    [/\bnext\b/i, "Next"],
+    [/will\s*bank|\bwill\b/i, "Will"],
+    [/btg|\bbank\b.*btg/i, "BTG"],
+    [/safra/i, "Safra"],
+    [/sicoob/i, "Sicoob"],
+    [/sicredi/i, "Sicredi"],
+    [/stone/i, "Stone"],
+    [/asaas/i, "Asaas"],
+  ];
+  for (const [re, nome] of regras) {
+    if (re.test(c)) return nome;
+  }
   return null;
 }
 
+/**
+ * Ordem importa: crédito/parcelas > débito > PIX > dinheiro.
+ * Evita classificar compra no crédito como PIX por causa de texto residual.
+ */
 function detectarForma(low, funcaoTxt) {
   const t = ((funcaoTxt || "") + " " + low).toLowerCase();
-  // Prioridade: crédito/parcelas antes de PIX (muitos comprovantes de cartão citam "pix" no rodapé)
   if (
-    /cr[eé]dito|compra no cr[eé]dito|fun[cç][aã]o\s*cr[eé]dito|cart[aã]o de cr[eé]dito/.test(t) ||
+    /cr[eé]dito|compra no cr[eé]dito|fun[cç][aã]o\s*cr[eé]dito|cart[aã]o de cr[eé]dito|modalidade\s*cr[eé]dito/.test(t) ||
     /\d{1,2}\s*x\b|parcelad|parcela\s*\d+\s*\/\s*\d+/.test(t)
   ) {
     return "credito";
   }
-  if (/d[eé]bito|compra no d[eé]bito|fun[cç][aã]o\s*d[eé]bito/.test(t)) return "debito";
-  if (/\bpix\b|transfer[eê]ncia\s*pix|pix\s*enviad|pix\s*recebid/.test(t)) return "pix";
+  if (/d[eé]bito|compra no d[eé]bito|fun[cç][aã]o\s*d[eé]bito|cart[aã]o de d[eé]bito/.test(t)) {
+    return "debito";
+  }
+  if (/\bpix\b|transfer[eê]ncia\s*instant|pagamento\s*instant/.test(t)) return "pix";
+  if (/\bted\b|\bdoc\b|transfer[eê]ncia\s*(banc[aá]ria|entre\s*contas)/.test(t)) return "ted";
+  if (/boleto|linha\s*digit[aá]vel|c[oó]digo\s*de\s*barras/.test(t)) return "boleto";
   if (/dinheiro|esp[eé]cie/.test(t)) return "dinheiro";
   return null;
 }
 
-/** PIX recebido = entrada; PIX enviado/pago = gasto */
-function detectarDirecaoPix(low) {
+/** PIX/TED: recebido = entrada; enviado/pago = gasto */
+function detectarDirecao(low) {
   const t = String(low || "").toLowerCase();
   if (
-    /pix\s*recebid|recebido\s*via\s*pix|voc[eê]\s*recebeu|entrada\s*via\s*pix|recebimento/.test(t) ||
-    /transfer[eê]ncia\s*recebid|valor\s*recebido/.test(t)
+    /pix\s*recebid|recebido\s*via\s*pix|voc[eê]\s*recebeu|entrada\s*via\s*pix|recebimento|valor\s*recebido|transfer[eê]ncia\s*recebid|cr[eé]dito\s*em\s*conta|depositado\s*na\s*sua\s*conta/.test(
+      t
+    )
   ) {
     return "entrada";
   }
   if (
-    /pix\s*enviad|enviado\s*via\s*pix|voc[eê]\s*enviou|pagamento\s*via\s*pix|pagou\s*com\s*pix/.test(t) ||
-    /transfer[eê]ncia\s*enviad|valor\s*enviado|comprovante\s*de\s*pagamento/.test(t)
+    /pix\s*enviad|enviado\s*via\s*pix|voc[eê]\s*enviou|pagamento\s*via\s*pix|pagou\s*com\s*pix|valor\s*enviado|transfer[eê]ncia\s*enviad|comprovante\s*de\s*pagamento|pagamento\s*realizado|pix\s*realizado/.test(
+      t
+    )
   ) {
     return "gasto";
   }
-  // Nubank: "Para" costuma ser envio; "De" sozinho e ambíguo
-  if (/\bpara\b/.test(t) && /\bpix\b/.test(t) && !/recebid/.test(t)) return "gasto";
+  // Labels clássicos: "Para" = destino (saída); "De" sozinho é ambíguo
+  if (/\bpara\b/.test(t) && (/\bpix\b/.test(t) || /transfer/.test(t)) && !/recebid/.test(t)) {
+    return "gasto";
+  }
   return null;
 }
 
 function extrairValoresMonetarios(texto) {
   const encontrados = [];
-  const re = /r\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})|r\$\s*(\d+[.,]\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})|(\d+,\d{2})/gi;
+  const re =
+    /r\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})|r\$\s*(\d+[.,]\d{2})|(\d{1,3}(?:\.\d{3})*,\d{2})|(\d+,\d{2})/gi;
   let m;
   while ((m = re.exec(texto)) !== null) {
     const v = paraNumero(m[1] || m[2] || m[3] || m[4]);
-    if (v) encontrados.push({ valor: v, index: m.index });
+    if (v > 0) encontrados.push({ valor: v, index: m.index });
   }
   return encontrados;
+}
+
+function valorPreferencial(limpo, valores) {
+  // Labels de valor total da operação (universal nos apps BR)
+  const labels = [
+    "Valor",
+    "Valor da transferência",
+    "Valor do pagamento",
+    "Valor da compra",
+    "Valor total",
+    "Total",
+    "Você pagou",
+    "Você enviou",
+    "Você recebeu",
+    "Quantia",
+  ];
+  for (const lb of labels) {
+    const raw = campo(limpo, [lb]);
+    if (raw) {
+      const v = paraNumero(raw);
+      if (v > 0) return v;
+    }
+  }
+  if (!valores.length) return 0;
+  return [...valores].sort((a, b) => b.valor - a.valor)[0].valor;
+}
+
+function montarDescricao(limpo, forma, tipo, estabelecimento) {
+  const para = campo(limpo, [
+    "Para",
+    "Destino",
+    "Destinatário",
+    "Destinatario",
+    "Recebedor",
+    "Nome do recebedor",
+    "Favorecido",
+  ]);
+  const de = campo(limpo, [
+    "De",
+    "Origem",
+    "Remetente",
+    "Pagador",
+    "Nome do pagador",
+    "Quem enviou",
+  ]);
+  const estab =
+    estabelecimento ||
+    campo(limpo, ["Estabelecimento", "Loja", "Comércio", "Comercio", "Local"]);
+
+  if (forma === "pix" || forma === "ted") {
+    if (tipo === "entrada" && de) return ("PIX de " + de).slice(0, 80);
+    if (tipo === "gasto" && para) return ("PIX para " + para).slice(0, 80);
+    if (tipo === "entrada") return "PIX recebido";
+    if (tipo === "gasto") return "PIX enviado";
+  }
+  if (forma === "credito" || forma === "debito") {
+    if (estab) return estab.slice(0, 80);
+  }
+  if (forma === "boleto") {
+    const ben = campo(limpo, ["Beneficiário", "Beneficiario", "Cedente"]);
+    if (ben) return ("Boleto " + ben).slice(0, 80);
+    return "Pagamento de boleto";
+  }
+  return extrairDescricao(limpo, estab);
 }
 
 function parseTextoLivre(limpo, low) {
   const valores = extrairValoresMonetarios(limpo);
   if (!valores.length) return [];
-  const v = [...valores].sort((a, b) => b.valor - a.valor)[0];
+  const v = valorPreferencial(limpo, valores) || valores[0].valor;
   const parcInfo = extrairParcelas(limpo);
   const parcelas = parcInfo && parcInfo.total > 1 ? parcInfo.total : 1;
   const data = extrairData(limpo);
-  const descricao = extrairDescricao(limpo, null);
+  const forma = detectarForma(low, null);
   const banco = detectarBanco(low, null);
-  const formaLivre = detectarForma(low, null);
-  const isCartao = formaLivre === "credito" || !!(parcInfo && parcelas > 1) || /cart[aã]o|cr[eé]dito|\d+\s*x/i.test(low);
-  const dirPix = (formaLivre === "pix" || /\bpix\b/i.test(low)) ? detectarDirecaoPix(low) : null;
-  const tipoLivre = isCartao ? "compraCartao" : (dirPix === "entrada" ? "entrada" : "gasto");
-  return [{
-    tipo: tipoLivre,
-    forma: isCartao ? "credito" : (formaLivre || (/\bpix\b/i.test(low) ? "pix" : "debito")),
-    descricao,
-    valor: parcelas > 1 && parcInfo && parcInfo.valorParcela ? parcInfo.valorParcela : v.valor,
-    valorTotal: parcelas > 1
-      ? (parcInfo && parcInfo.valorParcela ? parcInfo.valorParcela * parcelas : v.valor)
-      : v.valor,
-    categoria: categorizar(descricao, low),
-    tipoGasto: "Variavel",
-    recorrente: false,
-    dia: data ? data.dia : null,
-    parcelas: isCartao ? parcelas : 1,
-    banco,
-    cartaoFinal: null,
-    ano: data ? data.ano : null,
-    mes: data ? data.mes : null,
-  }];
-}
+  const isCartao =
+    forma === "credito" ||
+    !!(parcInfo && parcelas > 1) ||
+    /cart[aã]o|cr[eé]dito|\d+\s*x/i.test(low);
+  const dir = detectarDirecao(low);
+  let tipo = "gasto";
+  if (isCartao) tipo = "compraCartao";
+  else if (dir === "entrada") tipo = "entrada";
+  else if (forma === "pix" || forma === "ted" || forma === "boleto" || forma === "debito")
+    tipo = "gasto";
 
-
-
-const MESES_ABREV = {
-  jan: 0, janeiro: 0,
-  fev: 1, fevereiro: 1,
-  mar: 2, marco: 2, "março": 2,
-  abr: 3, abril: 3,
-  mai: 4, maio: 4,
-  jun: 5, junho: 5,
-  jul: 6, julho: 6,
-  ago: 7, agosto: 7,
-  set: 8, setembro: 8,
-  out: 9, outubro: 9,
-  nov: 10, novembro: 10,
-  dez: 11, dezembro: 11,
-};
-
-/** Extrato/fatura: varias linhas "02 AGO Descricao R$ 12,34" (Nubank e similares) */
-function parseExtratoLinhas(texto) {
-  const limpo = limparOcr(texto);
-  const lines = limpo.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  const itens = [];
-
-  let anoFatura = new Date().getFullYear();
-  const mAno = limpo.match(/fatura\s+\d{1,2}\s+\w+\s+(20\d{2})/i) || limpo.match(/\b(20\d{2})\b/);
-  if (mAno) anoFatura = parseInt(mAno[1], 10);
-
-  const reMes = "jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez|janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro";
-
-  for (let line of lines) {
-    const low = line.toLowerCase();
-    if (/^pagamentos?\b/i.test(low)) continue;
-    if (/pagamento em\b/i.test(low)) continue;
-    if (/total|saldo anterior|limite|vencimento|emiss[aã]o|resolu[cç]/i.test(low)) continue;
-    if (/-\s*r\$|r\$\s*-/i.test(line)) continue;
-
-    line = line.replace(/[·.•*]{2,}\s*\d{3,4}/g, " ").replace(/\s+/g, " ").trim();
-
-    const re = new RegExp("^(\\d{1,2})\\s+(" + reMes + ")\\s+(.+?)\\s+r\\$\\s*([\\d.]+,\\d{2})\\s*$", "i");
-    let m = line.match(re);
-    if (!m) {
-      const re2 = new RegExp("^(\\d{1,2})\\s+(" + reMes + ")\\s+(.+?)\\s+([\\d.]+,\\d{2})\\s*$", "i");
-      m = line.match(re2);
-    }
-    if (!m) continue;
-
-    const dia = parseInt(m[1], 10);
-    const mesKey = m[2].toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
-    const mes = MESES_ABREV[mesKey.slice(0, 3)] ?? MESES_ABREV[mesKey];
-    if (mes == null || dia < 1 || dia > 31) continue;
-
-    let descRaw = (m[3] || "").trim().replace(/^nu\s+/i, "").replace(/\s+/g, " ").trim();
-    if (!descRaw || descRaw.length < 2) continue;
-    if (/^\d{3,4}$/.test(descRaw)) continue;
-
-    const valor = paraNumero(m[4]);
-    if (!valor || valor <= 0) continue;
-    if (/victor|manoel|oliveira|barros/i.test(descRaw) && valor > 500) continue;
-
-    let soParcelaFatura = false;
-    let parcelasOriginais = 1;
-    const mp = descRaw.match(/parcela\s*(\d{1,2})\s*\/\s*(\d{1,2})/i);
-    if (mp) {
-      parcelasOriginais = Math.max(1, parseInt(mp[2], 10) || 1);
-      soParcelaFatura = parcelasOriginais > 1;
-    }
-
-    const desc = extrairDescricao(descRaw, descRaw);
-    const cat = categorizar(desc, descRaw.toLowerCase());
-
-    itens.push({
-      tipo: "compraCartao",
-      forma: "credito",
-      descricao: desc.slice(0, 48),
-      valor,
-      valorTotal: valor,
-      categoria: cat,
+  const descricao = montarDescricao(limpo, forma || (isCartao ? "credito" : "pix"), tipo, null);
+  return [
+    {
+      tipo,
+      forma: forma || (isCartao ? "credito" : /\bpix\b/i.test(low) ? "pix" : "debito"),
+      descricao,
+      valor: parcelas > 1 ? v : v,
+      valorTotal: parcelas > 1 ? v * (parcInfo && parcInfo.fonte === "fracao" ? 1 : 1) : v,
+      categoria: tipo === "entrada" ? "Outros" : categorizar(descricao, low),
       tipoGasto: "Variavel",
       recorrente: false,
-      dia,
-      parcelas: 1,
-      soParcelaFatura,
-      parcelasOriginais,
-      banco: /nupay|nubank|\bnu\b/i.test(descRaw + " " + limpo) ? "NU" : detectarBanco(limpo.toLowerCase(), ""),
+      dia: data ? data.dia : null,
+      parcelas: isCartao ? parcelas : 1,
+      banco,
       cartaoFinal: null,
-      ano: anoFatura,
-      mes,
-    });
-  }
-
-  return itens;
+      ano: data ? data.ano : null,
+      mes: data ? data.mes : null,
+    },
+  ];
 }
-
 
 export function parseLocal(texto) {
   const limpo = limparOcr(texto);
   const low = limpo.toLowerCase();
+  if (limpo.length < 8) return [];
 
-  // Extrato/fatura com varias compras (Nubank e similares)
-  const extrato = parseExtratoLinhas(limpo);
-  if (extrato.length >= 2) return extrato;
-
-  const estabelecimento = campo(limpo, ["Estabelecimento", "estabelecimento", "Destino", "Loja"]);
-  const valorTxt = campo(limpo, ["Valor", "valor"]);
-  const parcelasTxt = campo(limpo, ["Parcelas", "parcelas", "Parcela"]);
-  const dataTxt = campo(limpo, ["Data e Hora", "Data", "data e hora", "Data/Hora"]);
-  const cartaoTxt = campo(limpo, ["Cartão", "Cartao", "cartão", "cartao"]);
-  const funcaoTxt = campo(limpo, ["Função", "Funcao", "função", "funcao", "Tipo", "Pagamento"]);
-
-  const data = extrairData(dataTxt || limpo);
-  const parcInfo = extrairParcelas((parcelasTxt || "") + "\n" + limpo);
-  const valorCampo = paraNumero(valorTxt);
+  const estabelecimento = campo(limpo, [
+    "Estabelecimento",
+    "Loja",
+    "Comércio",
+    "Comercio",
+    "Local da compra",
+    "Nome fantasia",
+  ]);
+  const cartaoTxt = campo(limpo, ["Cartão", "Cartao", "Final", "Cartão final"]);
+  const funcaoTxt = campo(limpo, ["Função", "Funcao", "Tipo", "Modalidade", "Forma de pagamento"]);
+  const valorCampoRaw = campo(limpo, [
+    "Valor",
+    "Valor da transferência",
+    "Valor do pagamento",
+    "Valor da compra",
+    "Valor total",
+    "Total",
+    "Você pagou",
+    "Você enviou",
+    "Você recebeu",
+  ]);
+  const valorCampo = valorCampoRaw ? paraNumero(valorCampoRaw) : 0;
   const valores = extrairValoresMonetarios(limpo);
+  const parcInfo = extrairParcelas(limpo);
+  const data = extrairData(limpo);
 
-  let valorParcela = null;
-  let valorTotal = null;
   let parcelas = 1;
+  let valorParcela = 0;
+  let valorTotal = 0;
 
-  if (parcInfo) {
-    parcelas = parcInfo.total > 1 ? parcInfo.total : 1;
-    if (parcInfo.valorParcela) valorParcela = parcInfo.valorParcela;
+  if (parcInfo && parcInfo.total > 1) {
+    parcelas = parcInfo.total;
   }
 
-  if (valorCampo && parcelas > 1 && valorParcela) {
-    // Valor do comprovante costuma ser o TOTAL; parcela * N deve bater
-    valorTotal = valorCampo;
-    const prod = valorParcela * parcelas;
-    if (Math.abs(valorCampo - prod) <= 1.5) {
-      // ok: 3940 e 10x 394
-    } else if (Math.abs(valorCampo - valorParcela) <= 1.5) {
-      // campo "Valor" veio como parcela
-      valorTotal = valorParcela * parcelas;
-    } else if (valorCampo > prod * 0.5 && valorCampo < prod * 1.5) {
-      // pequena divergencia de OCR: confia no total do campo e recalcula parcela
-      valorTotal = valorCampo;
-      valorParcela = valorTotal / parcelas;
-    } else {
-      // se 10x 394 e valor 3940 bate na outra ordem
-      valorTotal = Math.max(valorCampo, prod);
-      valorParcela = valorTotal / parcelas;
-    }
-  } else if (valorCampo && parcelas > 1 && !valorParcela) {
+  if (valorCampo && parcelas > 1) {
+    // Fracao 3/10 no texto: valor do comprovante costuma ser a parcela
     if (parcInfo && parcInfo.fonte === "fracao") {
-      // "Parc 3/10" + Valor 150 => 150 e a parcela
       valorParcela = valorCampo;
       valorTotal = valorParcela * parcelas;
     } else {
-      // "10x" / "Parcelas 10" + Valor 3940 => total
       valorTotal = valorCampo;
       valorParcela = valorTotal / parcelas;
     }
@@ -396,73 +384,58 @@ export function parseLocal(texto) {
     valorParcela = valorCampo;
     valorTotal = valorCampo;
   } else if (valores.length) {
-    const sorted = [...valores].sort((a, b) => b.valor - a.valor);
-    if (parcelas > 1 && sorted.length >= 2) {
-      valorTotal = sorted[0].valor;
-      valorParcela =
-        sorted.find((v) => Math.abs(v.valor * parcelas - valorTotal) < 1)?.valor ||
-        valorTotal / parcelas;
+    const prefer = valorPreferencial(limpo, valores);
+    if (parcelas > 1) {
+      valorTotal = prefer;
+      valorParcela = prefer / parcelas;
     } else {
-      valorParcela = sorted[0].valor;
-      valorTotal = parcelas > 1 ? valorParcela * parcelas : valorParcela;
+      valorParcela = prefer;
+      valorTotal = prefer;
     }
   }
 
   if (!valorParcela && !valorTotal) return parseTextoLivre(limpo, low);
 
-  const descricao = extrairDescricao(limpo, estabelecimento);
-  const categoria = categorizar(descricao, low);
-  const banco = detectarBanco(low, cartaoTxt);
   const forma = detectarForma(low, funcaoTxt);
+  const banco = detectarBanco(low, cartaoTxt);
   const isCartao =
     forma === "credito" ||
     !!(parcInfo && parcelas > 1) ||
-    /cart[aã]o|visa|master|cr[eé]dito/i.test(low + " " + (funcaoTxt || ""));
+    /cart[aã]o|visa|master|elo|cr[eé]dito/i.test(low + " " + (funcaoTxt || ""));
 
-  const dirPix = forma === "pix" ? detectarDirecaoPix(low) : null;
+  const dir = detectarDirecao(low);
 
   let tipo;
-  if (isCartao || forma === "credito") {
-    tipo = "compraCartao";
-  } else if (forma === "pix" && dirPix === "entrada") {
-    tipo = "entrada";
-  } else if (forma === "pix" || forma === "debito" || forma === "dinheiro") {
-    tipo = "gasto";
-  } else if (dirPix === "entrada") {
-    tipo = "entrada";
-  } else {
-    tipo = "gasto";
-  }
+  if (isCartao || forma === "credito") tipo = "compraCartao";
+  else if ((forma === "pix" || forma === "ted") && dir === "entrada") tipo = "entrada";
+  else if (dir === "entrada") tipo = "entrada";
+  else tipo = "gasto";
 
-  // Descricao mais util para PIX
-  let descFinal = descricao;
-  if (forma === "pix") {
-    const para = campo(limpo, ["Para", "Destino", "Nome"]);
-    const de = campo(limpo, ["De", "Origem", "Remetente"]);
-    if (tipo === "entrada" && de) descFinal = "PIX de " + de;
-    else if (tipo === "gasto" && para) descFinal = "PIX para " + para;
-    else if (!descFinal || descFinal.length < 3) descFinal = tipo === "entrada" ? "PIX recebido" : "PIX enviado";
-  }
+  const formaFinal =
+    forma ||
+    (tipo === "compraCartao" ? "credito" : tipo === "entrada" ? "pix" : /\bpix\b/i.test(low) ? "pix" : "debito");
 
-  const finalMatch = (cartaoTxt || "").match(/final\s*(\d{4})/i);
-  const formaFinal = forma || (tipo === "compraCartao" ? "credito" : tipo === "entrada" ? "pix" : "debito");
+  const descricao = montarDescricao(limpo, formaFinal, tipo, estabelecimento);
+  const finalMatch = (cartaoTxt || limpo).match(/final\s*(\d{4})/i);
 
-  return [{
-    tipo,
-    forma: formaFinal,
-    descricao: descFinal,
-    valor: valorParcela || valorTotal,
-    valorTotal: valorTotal || valorParcela,
-    categoria: tipo === "entrada" ? "Outros" : categorizar(descFinal, low),
-    tipoGasto: "Variavel",
-    recorrente: false,
-    dia: data ? data.dia : null,
-    parcelas: tipo === "compraCartao" ? Math.max(1, parcelas) : 1,
-    banco,
-    cartaoFinal: finalMatch ? finalMatch[1] : null,
-    ano: data ? data.ano : null,
-    mes: data ? data.mes : null,
-  }];
+  return [
+    {
+      tipo,
+      forma: formaFinal,
+      descricao,
+      valor: valorParcela || valorTotal,
+      valorTotal: valorTotal || valorParcela,
+      categoria: tipo === "entrada" ? "Outros" : categorizar(descricao, low),
+      tipoGasto: "Variavel",
+      recorrente: false,
+      dia: data ? data.dia : null,
+      parcelas: tipo === "compraCartao" ? Math.max(1, parcelas) : 1,
+      banco,
+      cartaoFinal: finalMatch ? finalMatch[1] : null,
+      ano: data ? data.ano : null,
+      mes: data ? data.mes : null,
+    },
+  ];
 }
 
 export async function parseQuickAdd(texto) {
