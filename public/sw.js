@@ -1,4 +1,4 @@
-/* Share Target — grava comprovante e redireciona para o app */
+/* Share Target — recebe POST do Android, grava cache, redireciona */
 const CACHE = "mc-share-v6";
 const KEY = "/__mc_shared__";
 
@@ -10,10 +10,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (!event.data) return;
   if (event.data.type === "SKIP_WAITING") self.skipWaiting();
-  if (event.data.type === "CLAIM_CLIENTS") self.clients.claim();
+  if (event.data.type === "CLAIM_CLIENTS") event.waitUntil(self.clients.claim());
 });
 
-async function gravarArquivo(cache, file, textoJunto) {
+async function salvarArquivo(cache, file, textoJunto) {
   const buf = await file.arrayBuffer();
   const name = (file instanceof File && file.name) || "comprovante.jpg";
   const type = file.type || "application/octet-stream";
@@ -45,7 +45,6 @@ self.addEventListener("fetch", (event) => {
         let file = null;
         const textos = [];
 
-        // Campos comuns de share_target / Android
         const fileKeys = ["images", "file", "files", "media", "image", "screenshot", "comprovante"];
         for (const key of fileKeys) {
           for (const item of formData.getAll(key)) {
@@ -56,7 +55,6 @@ self.addEventListener("fetch", (event) => {
           }
           if (file) break;
         }
-
         if (!file) {
           for (const val of formData.values()) {
             if (val instanceof Blob && val.size > 40) {
@@ -65,14 +63,13 @@ self.addEventListener("fetch", (event) => {
             }
           }
         }
-
-        for (const [k, v] of formData.entries()) {
+        for (const [, v] of formData.entries()) {
           if (typeof v === "string" && v.trim()) textos.push(v.trim());
         }
         const textoJunto = [...new Set(textos)].join("\n").trim();
 
         if (file) {
-          await gravarArquivo(cache, file, textoJunto);
+          await salvarArquivo(cache, file, textoJunto);
           saved = true;
         } else if (textoJunto.length > 3) {
           await cache.put(
@@ -108,8 +105,8 @@ self.addEventListener("fetch", (event) => {
           );
         }
 
-        const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-        for (const client of clientsList) {
+        const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        for (const client of list) {
           try {
             client.postMessage({ type: "SHARE_RECEIVED", saved });
           } catch {}

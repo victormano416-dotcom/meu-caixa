@@ -1,11 +1,22 @@
-/** Lê imagem/PDF/texto vindo do Android Share Target */
+/** Share Target: grava no SW, lê no app o mais cedo possível (antes do login). */
 
 const CACHES = ["mc-share-v6", "mc-share-v5"];
 const KEY = "/__mc_shared__";
 
-/**
- * @returns {Promise<null | { kind: 'file', file: File, textHint?: string } | { kind: 'text', text: string }>}
- */
+let pendingPayload = null;
+const waiters = new Set();
+
+function notifyWaiters(payload) {
+  pendingPayload = payload;
+  for (const cb of [...waiters]) {
+    try {
+      cb(payload);
+    } catch (e) {
+      console.warn("share waiter", e);
+    }
+  }
+}
+
 async function lerCacheUmaVez() {
   for (const CACHE of CACHES) {
     try {
@@ -16,7 +27,7 @@ async function lerCacheUmaVez() {
       const ctype = (res.headers.get("content-type") || "").toLowerCase();
       const kind = res.headers.get("x-share-kind") || "";
 
-      if (kind === "empty" || (ctype.includes("text/plain") && !kind)) {
+      if (kind === "empty") {
         const text = await res.text();
         await cache.delete(KEY);
         if (text === "NO_FILE") {
@@ -49,7 +60,7 @@ async function lerCacheUmaVez() {
         continue;
       }
 
-      const type = ctype || "image/jpeg";
+      const type = ctype && !ctype.includes("text/plain") ? ctype : "image/jpeg";
       let name = "comprovante.jpg";
       try {
         name = decodeURIComponent(res.headers.get("x-file-name") || name);
@@ -68,50 +79,70 @@ async function lerCacheUmaVez() {
 }
 
 export async function consumirCompartilhamento() {
-  // 40 * 200ms = 8s
-  for (let i = 0; i < 40; i++) {
+  if (pendingPayload) {
+    const p = pendingPayload;
+    pendingPayload = null;
+    return p;
+  }
+
+  for (let i = 0; i < 50; i++) {
     const payload = await lerCacheUmaVez();
     if (payload) {
-      try {
-        sessionStorage.setItem("mc_share_ok", "1");
-      } catch {}
+      notifyWaiters(payload);
+      pendingPayload = null;
       return payload;
     }
-    await new Promise((ok) => setTimeout(ok, 200));
-  }
-  if (window.location.search.includes("share=1") && !window.__mcDiagMostrado) {
-    window.__mcDiagMostrado = true;
-    if (window.__mcShareError === "no-file") {
-      alert(
-        "O banco enviou o compartilhamento sem imagem.\\n" +
-          "Campos: " +
-          (window.__mcShareKeys || "nada") +
-          "\\n\\nNo Nubank: use Compartilhar → Imagem/Print, ou salve o comprovante e escolha Galeria no Meu Caixa."
-      );
-    }
+    await new Promise((ok) => setTimeout(ok, 120));
   }
   return null;
+}
+
+export function onCompartilhamento(callback) {
+  waiters.add(callback);
+  if (pendingPayload) {
+    try {
+      callback(pendingPayload);
+    } catch {}
+  }
+  return () => waiters.delete(callback);
 }
 
 function avisarApp() {
   try {
     window.dispatchEvent(new Event("meu-caixa-share-received"));
   } catch {}
+  lerCacheUmaVez().then((payload) => {
+    if (payload) notifyWaiters(payload);
+  });
+}
+
+export function iniciarCapturaCompartilhamento() {
+  const qs = new URLSearchParams(window.location.search);
+  const fromShare = qs.get("share") === "1" || qs.get("shareError") === "1";
+
+  const tick = async () => {
+    const payload = await lerCacheUmaVez();
+    if (payload) notifyWaiters(payload);
+  };
+
+  if (fromShare) {
+    tick();
+    const id = setInterval(tick, 250);
+    setTimeout(() => clearInterval(id), 15000);
+  }
+
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "SHARE_RECEIVED") {
+        avisarApp();
+        tick();
+      }
+    });
+  }
 }
 
 export function registrarServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-
-  navigator.serviceWorker.addEventListener("message", (event) => {
-    const data = event.data || {};
-    if (data.type === "SHARE_RECEIVED") {
-      avisarApp();
-      // se o app ainda não montou, marca pendência
-      try {
-        sessionStorage.setItem("mc_share_pending", data.saved ? "1" : "0");
-      } catch {}
-    }
-  });
 
   const reg = () => {
     navigator.serviceWorker
@@ -125,24 +156,10 @@ export function registrarServiceWorker() {
             r.waiting.postMessage({ type: "SKIP_WAITING" });
           } catch {}
         }
-        // pede controle imediato
-        if (r.active && navigator.serviceWorker.controller == null) {
-          try {
-            r.active.postMessage({ type: "CLAIM_CLIENTS" });
-          } catch {}
-        }
       })
       .catch((e) => console.warn("SW register", e));
   };
 
   if (document.readyState === "complete") reg();
   else window.addEventListener("load", reg);
-
-  if (window.location.search.includes("share=1")) {
-    window.addEventListener("load", () => {
-      setTimeout(avisarApp, 200);
-      setTimeout(avisarApp, 800);
-      setTimeout(avisarApp, 1600);
-    });
-  }
 }
