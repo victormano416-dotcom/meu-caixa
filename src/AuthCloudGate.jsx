@@ -384,6 +384,18 @@ export default function AuthCloudGate({ children }) {
     );
   }
 
+  // Compartilhar do banco: não espera login/nuvem (regressão que quebrou o OCR)
+  const fromShare =
+    typeof window !== "undefined" &&
+    (window.__MC_FROM_SHARE === true ||
+      Boolean(window.__MC_SHARE_PAYLOAD) ||
+      new URLSearchParams(window.location.search).get("share") === "1" ||
+      new URLSearchParams(window.location.search).get("shareError") === "1");
+
+  if (fromShare) {
+    return children;
+  }
+
   if (authLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-sm text-neutral-400">
