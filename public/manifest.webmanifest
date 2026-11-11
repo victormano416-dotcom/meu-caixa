@@ -42,7 +42,15 @@
       "files": [
         {
           "name": "images",
-          "accept": ["image/*", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "application/pdf", "application/octet-stream", "*/*"]
+          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "*/*"]
+        },
+        {
+          "name": "file",
+          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "*/*"]
+        },
+        {
+          "name": "media",
+          "accept": ["image/*", "application/pdf", ".jpg", ".jpeg", ".png", ".webp", ".pdf", "*/*"]
         }
       ]
     }
@@ -51,7 +59,8 @@
     {
       "action": "/",
       "accept": {
-        "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+        "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif"],
+        "application/pdf": [".pdf"]
       }
     }
   ]
