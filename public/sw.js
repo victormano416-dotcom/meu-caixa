@@ -1,49 +1,55 @@
 /* Share Target — grava comprovante (imagem/PDF) ou texto e redireciona */
-const CACHE = "mc-share-v5";
+const CACHE = "mc-share-v6";
 const KEY = "/__mc_shared__";
 
-self.addEventListener("install", (e) => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
+});
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== "POST") return;
   if (url.pathname !== "/share-target" && !url.pathname.endsWith("/share-target")) return;
+  if (event.request.method !== "POST") return;
 
   event.respondWith(
     (async () => {
       let saved = false;
       try {
         const formData = await event.request.formData();
+        const cache = await caches.open(CACHE);
         let file = null;
-        const textos = [];
+        let textoJunto = "";
 
-        // 1) arquivos nomeados "images" (manifest share_target)
         for (const item of formData.getAll("images")) {
           if (item instanceof Blob && item.size > 0) {
             file = item;
             break;
           }
         }
-        // 2) qualquer Blob no form
+
         if (!file) {
-          for (const val of formData.values()) {
-            if (val instanceof Blob && val.size > 0) {
+          for (const [, val] of formData.entries()) {
+            if (val instanceof Blob && val.size > 40) {
               file = val;
               break;
             }
           }
         }
-        // 3) textos (title, text, url e outros)
-        for (const [k, v] of formData.entries()) {
-          if (typeof v === "string" && v.trim()) {
-            // evita guardar so URL vazia de tracking se ja tem texto melhor
-            textos.push(v.trim());
-          }
-        }
 
-        const textoJunto = [...new Set(textos)].join("\n").trim();
-        const cache = await caches.open(CACHE);
+        const parts = [];
+        for (const key of ["title", "text", "url", "description"]) {
+          const v = formData.get(key);
+          if (typeof v === "string" && v.trim()) parts.push(v.trim());
+        }
+        textoJunto = parts.join("\n").trim();
 
         if (file) {
           const buf = await file.arrayBuffer();
@@ -57,8 +63,7 @@ self.addEventListener("fetch", (event) => {
                 "x-file-name": encodeURIComponent(name),
                 "x-file-size": String(buf.byteLength),
                 "x-share-kind": "file",
-                // se o banco mandou texto junto, guarda pra fallback
-                "x-share-text": encodeURIComponent(textoJunto.slice(0, 4000)),
+                "x-share-text": encodeURIComponent(textoJunto || ""),
               },
             })
           );
@@ -68,7 +73,7 @@ self.addEventListener("fetch", (event) => {
             KEY,
             new Response(textoJunto, {
               headers: {
-                "content-type": "text/plain;charset=utf-8",
+                "content-type": "text/plain; charset=utf-8",
                 "x-share-kind": "text",
                 "x-file-size": String(textoJunto.length),
               },
@@ -78,7 +83,11 @@ self.addEventListener("fetch", (event) => {
         } else {
           const detalhes = Array.from(formData.entries())
             .map(([k, v]) =>
-              k + ":" + (v instanceof Blob ? "arquivo(" + (v.type || "sem-tipo") + "," + v.size + "b)" : "texto")
+              k +
+              ":" +
+              (v instanceof Blob
+                ? "arquivo(" + (v.type || "sem-tipo") + "," + v.size + "b)"
+                : "texto")
             )
             .join(" | ");
           await cache.put(
@@ -95,7 +104,9 @@ self.addEventListener("fetch", (event) => {
 
         const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
         for (const client of clients) {
-          client.postMessage({ type: "SHARE_RECEIVED", saved });
+          try {
+            client.postMessage({ type: "SHARE_RECEIVED", saved });
+          } catch {}
         }
       } catch (err) {
         console.error("share-target error", err);

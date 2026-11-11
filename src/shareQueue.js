@@ -1,6 +1,6 @@
 /** Lê imagem/PDF/texto vindo do Android Share Target */
 
-const CACHE = "mc-share-v5";
+const CACHE = "mc-share-v6";
 const KEY = "/__mc_shared__";
 
 /**
@@ -15,7 +15,6 @@ async function lerCacheUmaVez() {
     const ctype = (res.headers.get("content-type") || "").toLowerCase();
     const kind = res.headers.get("x-share-kind") || "";
 
-    // flag de erro / vazio
     if (kind === "empty" || (ctype.includes("text/plain") && !kind)) {
       const text = await res.text();
       await cache.delete(KEY);
@@ -30,7 +29,6 @@ async function lerCacheUmaVez() {
       return null;
     }
 
-    // texto puro (banco compartilhou so o texto do comprovante)
     if (kind === "text" || (ctype.includes("text/plain") && kind === "text")) {
       const text = await res.text();
       await cache.delete(KEY);
@@ -38,7 +36,6 @@ async function lerCacheUmaVez() {
       return { kind: "text", text: text.trim() };
     }
 
-    // arquivo (imagem ou PDF)
     const buf = await res.arrayBuffer();
     let textHint = "";
     try {
@@ -69,33 +66,58 @@ async function lerCacheUmaVez() {
 }
 
 export async function consumirCompartilhamento() {
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < 40; i++) {
     const payload = await lerCacheUmaVez();
     if (payload) return payload;
-    await new Promise((ok) => setTimeout(ok, 200));
+    await new Promise((ok) => setTimeout(ok, 150));
   }
   if (window.location.search.includes("share=1") && !window.__mcDiagMostrado) {
     window.__mcDiagMostrado = true;
     if (window.__mcShareError === "no-file") {
       alert(
-        "Diagnostico: o celular entregou o compartilhamento SEM imagem e SEM texto util. Recebido: " +
-          (window.__mcShareKeys || "nada")
+        "Diagnóstico: o celular entregou o compartilhamento SEM imagem.\nCampos: " +
+          (window.__mcShareKeys || "nada") +
+          "\n\nTente: compartilhar o print (imagem), não o PDF, e usar o app instalado (ícone na tela inicial)."
       );
     }
   }
   return null;
 }
 
+function avisarApp() {
+  try {
+    window.dispatchEvent(new Event("meu-caixa-share-received"));
+  } catch {}
+}
+
 export function registrarServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
+
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const data = event.data || {};
+    if (data.type === "SHARE_RECEIVED") {
+      avisarApp();
+    }
+  });
 
   const reg = () => {
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
-      .then((r) => r.update().catch(() => {}))
+      .then((r) => {
+        r.update().catch(() => {});
+        if (r.waiting) {
+          try {
+            r.waiting.postMessage({ type: "SKIP_WAITING" });
+          } catch {}
+        }
+      })
       .catch((e) => console.warn("SW register", e));
   };
 
   if (document.readyState === "complete") reg();
   else window.addEventListener("load", reg);
+
+  if (window.location.search.includes("share=1")) {
+    window.addEventListener("load", () => setTimeout(avisarApp, 300));
+  }
 }
