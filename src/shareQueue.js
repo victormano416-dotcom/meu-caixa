@@ -1,13 +1,18 @@
-/** Share Target: grava no SW, lê no app o mais cedo possível (antes do login). */
+/** Share Target: captura ANTES do login e guarda até o App consumir de verdade. */
 
 const CACHES = ["mc-share-v6", "mc-share-v5"];
 const KEY = "/__mc_shared__";
 
-let pendingPayload = null;
+let stickyPayload = null;
 const waiters = new Set();
 
-function notifyWaiters(payload) {
-  pendingPayload = payload;
+function setSticky(payload) {
+  if (!payload) return;
+  stickyPayload = payload;
+  try {
+    window.__MC_FROM_SHARE = true;
+    window.__MC_SHARE_PAYLOAD = payload;
+  } catch {}
   for (const cb of [...waiters]) {
     try {
       cb(payload);
@@ -78,18 +83,14 @@ async function lerCacheUmaVez() {
   return null;
 }
 
+/** Devolve o payload sem descartar (pode ser lido várias vezes até confirmar). */
 export async function consumirCompartilhamento() {
-  if (pendingPayload) {
-    const p = pendingPayload;
-    pendingPayload = null;
-    return p;
-  }
+  if (stickyPayload) return stickyPayload;
 
   for (let i = 0; i < 50; i++) {
     const payload = await lerCacheUmaVez();
     if (payload) {
-      notifyWaiters(payload);
-      pendingPayload = null;
+      setSticky(payload);
       return payload;
     }
     await new Promise((ok) => setTimeout(ok, 120));
@@ -97,11 +98,18 @@ export async function consumirCompartilhamento() {
   return null;
 }
 
+export function confirmarCompartilhamentoConsumido() {
+  stickyPayload = null;
+  try {
+    window.__MC_SHARE_PAYLOAD = null;
+  } catch {}
+}
+
 export function onCompartilhamento(callback) {
   waiters.add(callback);
-  if (pendingPayload) {
+  if (stickyPayload) {
     try {
-      callback(pendingPayload);
+      callback(stickyPayload);
     } catch {}
   }
   return () => waiters.delete(callback);
@@ -112,23 +120,29 @@ function avisarApp() {
     window.dispatchEvent(new Event("meu-caixa-share-received"));
   } catch {}
   lerCacheUmaVez().then((payload) => {
-    if (payload) notifyWaiters(payload);
+    if (payload) setSticky(payload);
   });
 }
 
 export function iniciarCapturaCompartilhamento() {
   const qs = new URLSearchParams(window.location.search);
   const fromShare = qs.get("share") === "1" || qs.get("shareError") === "1";
+  if (fromShare) {
+    try {
+      window.__MC_FROM_SHARE = true;
+    } catch {}
+  }
 
   const tick = async () => {
+    if (stickyPayload) return;
     const payload = await lerCacheUmaVez();
-    if (payload) notifyWaiters(payload);
+    if (payload) setSticky(payload);
   };
 
   if (fromShare) {
     tick();
-    const id = setInterval(tick, 250);
-    setTimeout(() => clearInterval(id), 15000);
+    const id = setInterval(tick, 200);
+    setTimeout(() => clearInterval(id), 20000);
   }
 
   if (navigator.serviceWorker) {
